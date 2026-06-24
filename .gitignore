@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+jspm_packages/
+web_modules/
+
+# Debug logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data and coverage
+pids
+*.pid
+*.seed
+*.pid.lock
+lib-cov
+coverage
+*.lcov
+
+# Build outputs and dist folders
+dist/
+build/
+.next/
+.nuxt/
+out/
+
+# Environment variables and secrets (CRITICAL)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env.js
+
+# Optional: Keep an example template tracked in Git
+!.env.example
+
+# IDE and Editor configs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
