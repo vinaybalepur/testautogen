@@ -4,6 +4,8 @@ import cookieParser from 'cookie-parser';
 import dotenv       from 'dotenv';
 import './config/db';
 import authRoutes   from './routes/auth';
+import jiraRoutes  from './routes/jira';  
+import aiRoutes     from './routes/ai';
 
 dotenv.config();
 
@@ -18,6 +20,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use('/api/auth', authRoutes);
+app.use('/api/jira', jiraRoutes); 
+app.use('/api/ai',   aiRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
@@ -28,3 +32,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
