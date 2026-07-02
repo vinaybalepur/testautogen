@@ -26,8 +26,6 @@ export interface RefreshToken {
   created_at: Date;
 }
 
-<<<<<<< HEAD
-=======
 
 
 // Jira ticket fields
@@ -69,7 +67,6 @@ export interface AIResponse {
   model:          string;
 }
 
->>>>>>> jiraconfiguration
 // Extends Express Request to include userId
 declare global {
   namespace Express {
