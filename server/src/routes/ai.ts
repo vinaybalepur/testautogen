@@ -1,11 +1,10 @@
 import { Router }                            from 'express';
-import { generateTestCases, getTestCases }   from '../controllers/aiController';
+import { generateTestCases }   from '../controllers/aiController';
 import authenticate                           from '../middleware/authenticate';
 
 const router = Router();
 
 // All AI routes are protected
-router.post('/generate',          authenticate, generateTestCases);
-router.get('/testcases/:ticketKey', authenticate, getTestCases);
+router.post('/generate', authenticate, generateTestCases);
 
 export default router;
