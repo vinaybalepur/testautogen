@@ -86,27 +86,3 @@ export const generateTestCases = async (req: Request, res: Response): Promise<vo
     res.status(500).json({ error: 'Failed to generate test cases' });
   }
 };
-
-// ── GET ALL TEST CASES FOR A TICKET ───────────────────
-export const getTestCases = async (req: Request, res: Response): Promise<void> => {
-  const ticketKey = req.params.ticketKey as string;
-
-  try {
-    const result = await pool.query(
-      `SELECT * FROM test_cases 
-       WHERE jira_id = $1 AND user_id = $2
-       ORDER BY created_at DESC`,
-      [ticketKey, req.userId]
-    );
-
-    res.json({
-      ticketKey,
-      count:     result.rows.length,
-      testCases: result.rows
-    });
-
-  } catch (err) {
-    console.error('Get test cases error:', err);
-    res.status(500).json({ error: 'Failed to fetch test cases' });
-  }
-};
