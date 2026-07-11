@@ -7,6 +7,10 @@ import authRoutes   from './routes/auth';
 import jiraRoutes  from './routes/jira';  
 import aiRoutes     from './routes/ai';
 
+import jiraRoutes  from './routes/jira';  
+import aiRoutes     from './routes/ai';
+import testCaseRoutes  from './routes/testCases'; 
+
 dotenv.config();
 
 const app = express();
@@ -23,6 +27,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/jira', jiraRoutes); 
 app.use('/api/ai',   aiRoutes);
 
+app.use('/api/jira', jiraRoutes); 
+app.use('/api/ai',   aiRoutes);
+app.use('/api/testcases',  testCaseRoutes); 
+
 // Health check route
 app.get('/health', (req, res) => {
   res.json({ status: 'Server is up and running 🚀' });
@@ -31,5 +39,6 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+
 });
 
