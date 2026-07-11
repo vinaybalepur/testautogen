@@ -35,15 +35,14 @@ export const pushTestCasesToJira = async (req: Request, res: Response): Promise<
 
         for (const testCase of result.rows) {
             try {
-                console.log("Inside try");
+                
                 if (testCase.status === 'modified' && testCase.jira_subtask_key) {
-                    console.log("*****************");
-                    console.log(await ticketExistsInJIRA(testCase.jira_subtask_key));
+                    
                     if (!await ticketExistsInJIRA(testCase.jira_subtask_key)) {
-                        console.log("--------------------");
+                        
                          const jiraKey = await createTicketInJIRA(ticketKey, testCase);
                         // Store Jira key in DB
-                        console.log(jiraKey + " " + testCase.id);
+                        
                         await pool.query(
                         `UPDATE test_cases SET jira_subtask_key = $1 WHERE id = $2`,
                         [jiraKey, testCase.id]

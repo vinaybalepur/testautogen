@@ -6,9 +6,6 @@ import './config/db';
 import authRoutes   from './routes/auth';
 import jiraRoutes  from './routes/jira';  
 import aiRoutes     from './routes/ai';
-
-import jiraRoutes  from './routes/jira';  
-import aiRoutes     from './routes/ai';
 import testCaseRoutes  from './routes/testCases'; 
 import jiraPushRoutes  from './routes/jiraPush'; 
 
