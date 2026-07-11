@@ -5,7 +5,8 @@ import {
   rejectTestCase,
   updateTestCase,
   downloadTestCases,
-  deleteTestCase
+  deleteTestCase,
+  uploadTestCases
 }                           from '../controllers/testCaseController';
 import authenticate         from '../middleware/authenticate';
 
@@ -18,5 +19,6 @@ router.put('/:id/approve',         authenticate, approveTestCase);
 router.put('/:id/reject',          authenticate, rejectTestCase);
 router.put('/:id',                 authenticate, updateTestCase);
 router.delete('/:id',              authenticate, deleteTestCase);
+router.post('/:ticketKey/upload',  authenticate, uploadTestCases);
 
 export default router;

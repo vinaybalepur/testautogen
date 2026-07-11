@@ -10,6 +10,7 @@ import aiRoutes     from './routes/ai';
 import jiraRoutes  from './routes/jira';  
 import aiRoutes     from './routes/ai';
 import testCaseRoutes  from './routes/testCases'; 
+import jiraPushRoutes  from './routes/jiraPush'; 
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.use('/api/ai',   aiRoutes);
 app.use('/api/jira', jiraRoutes); 
 app.use('/api/ai',   aiRoutes);
 app.use('/api/testcases',  testCaseRoutes); 
+app.use('/api/push',       jiraPushRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {

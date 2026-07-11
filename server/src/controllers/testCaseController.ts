@@ -1,6 +1,17 @@
 import { Request, Response } from 'express';
 import pool                   from '../config/db';
 import { Parser }             from 'json2csv';
+import { parse } from 'csv-parse/sync';
+
+
+
+// CSV row interface
+interface CSVRow {
+  id:               string;
+  jira_id:          string;
+  test_case:        string;
+  defect_jira_id:   string;
+}
 
 // ── GET ALL TEST CASES FOR A TICKET ───────────────────
 export const getTestCases = async (req: Request, res: Response): Promise<void> => {
@@ -101,10 +112,9 @@ export const rejectTestCase = async (req: Request, res: Response): Promise<void>
 
 // ── UPDATE TEST CASE ───────────────────────────────────
 export const updateTestCase = async (req: Request, res: Response): Promise<void> => {
-  const id                          = req.params.id as string;
+  const id                            = req.params.id as string;
   const { test_case, defect_jira_id } = req.body;
 
-  // At least one field must be provided
   if (!test_case && !defect_jira_id) {
     res.status(400).json({ error: 'Nothing to update' });
     return;
@@ -115,8 +125,15 @@ export const updateTestCase = async (req: Request, res: Response): Promise<void>
       `UPDATE test_cases
        SET
          test_case      = COALESCE($1, test_case),
-         defect_jira_id = COALESCE($2, defect_jira_id)
-       WHERE id = $3 AND user_id = $4
+         defect_jira_id = COALESCE($2, defect_jira_id),
+         -- If already pushed to Jira, mark as modified
+         status         = CASE
+                            WHEN jira_subtask_key IS NOT NULL AND $1 IS NOT NULL
+                            THEN 'modified'
+                            ELSE status
+                          END
+       WHERE id      = $3
+       AND   user_id = $4
        RETURNING *`,
       [test_case || null, defect_jira_id || null, id, req.userId]
     );
@@ -198,5 +215,67 @@ export const deleteTestCase = async (req: Request, res: Response): Promise<void>
   } catch (err) {
     console.error('Delete test case error:', err);
     res.status(500).json({ error: 'Failed to delete test case' });
+  }
+};
+
+// Upload test cases to jira
+export const uploadTestCases = async (req: Request, res: Response): Promise<void> => {
+  const ticketKey = req.params.ticketKey as string;
+
+  if (!req.body.csv) {
+    res.status(400).json({ error: 'No CSV data provided' });
+    return;
+  }
+
+  try {
+    // Parse CSV with type
+    const records = parse(req.body.csv, {
+      columns:          true,
+      skip_empty_lines: true,
+      trim:             true
+    }) as CSVRow[];                    
+
+    const updated: any[] = [];
+    const failed:  any[] = [];
+
+    for (const row of records) {      
+      try {
+        if (!row.id) {
+          failed.push({ row, error: 'Missing id' });
+          continue;
+        }
+
+        await pool.query(
+          `UPDATE test_cases
+           SET
+             defect_jira_id   = COALESCE(NULLIF($1, ''), defect_jira_id),
+             
+           WHERE id      = $3
+           AND   jira_id = $4
+           AND   user_id = $5`,
+          [
+            row.defect_jira_id   || null,
+            row.id,
+            ticketKey,
+            req.userId
+          ]
+        );
+
+        updated.push({ id: row.id });
+
+      } catch (err: any) {
+        failed.push({ row, error: err.message });
+      }
+    }
+
+    res.json({
+      message: `Updated ${updated.length} test cases`,
+      updated,
+      failed
+    });
+
+  } catch (err) {
+    console.error('Upload CSV error:', err);
+    res.status(500).json({ error: 'Failed to process CSV' });
   }
 };
