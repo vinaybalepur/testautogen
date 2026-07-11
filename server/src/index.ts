@@ -4,6 +4,8 @@ import cookieParser from 'cookie-parser';
 import dotenv       from 'dotenv';
 import './config/db';
 import authRoutes   from './routes/auth';
+import jiraRoutes  from './routes/jira';  
+import aiRoutes     from './routes/ai';
 
 import jiraRoutes  from './routes/jira';  
 import aiRoutes     from './routes/ai';
@@ -22,6 +24,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use('/api/auth', authRoutes);
+app.use('/api/jira', jiraRoutes); 
+app.use('/api/ai',   aiRoutes);
 
 app.use('/api/jira', jiraRoutes); 
 app.use('/api/ai',   aiRoutes);
