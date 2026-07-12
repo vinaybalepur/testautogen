@@ -2,12 +2,13 @@ import express      from 'express';
 import cors         from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv       from 'dotenv';
-import './config/db';
 import authRoutes   from './routes/auth';
 import jiraRoutes  from './routes/jira';  
 import aiRoutes     from './routes/ai';
 import testCaseRoutes  from './routes/testCases'; 
 import jiraPushRoutes  from './routes/jiraPush'; 
+import postmanRoutes    from './routes/postman'; 
+import  './config/db';
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ app.use('/api/jira', jiraRoutes);
 app.use('/api/ai',   aiRoutes);
 app.use('/api/testcases',  testCaseRoutes); 
 app.use('/api/push',       jiraPushRoutes);
+app.use('/api/postman',   postmanRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
