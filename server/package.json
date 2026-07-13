@@ -21,6 +21,8 @@
     "express": "^5.2.1",
     "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.3",
+    "newman": "^6.2.2",
+    "newman-reporter-htmlextra": "^1.23.1",
     "openai": "^6.45.0",
     "pg": "^8.22.0"
   },
@@ -32,6 +34,7 @@
     "@types/express": "^5.0.6",
     "@types/json2csv": "^5.0.7",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/newman": "^5.3.6",
     "@types/node": "^26.0.1",
     "@types/pg": "^8.20.0",
     "nodemon": "^3.1.14",
