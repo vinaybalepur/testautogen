@@ -50,3 +50,6 @@ out/
 .DS_Store
 Thumbs.db
 
+# Reports
+newman/
+reports/
