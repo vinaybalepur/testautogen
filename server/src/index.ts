@@ -10,6 +10,8 @@ import jiraPushRoutes  from './routes/jiraPush';
 import postmanRoutes    from './routes/postman'; 
 import newmanRoutes   from './routes/newman'; 
 import pool             from './config/db';
+import defectRoutes    from './routes/defects'; 
+
 import  './config/db';
 
 dotenv.config();
@@ -34,6 +36,7 @@ app.use('/api/testcases',  testCaseRoutes);
 app.use('/api/push',       jiraPushRoutes);
 app.use('/api/postman',   postmanRoutes);
 app.use('/api/newman',    newmanRoutes);  
+app.use('/api/defects',   defectRoutes); 
 
 // Health check route
 app.get('/health', (req, res) => {
