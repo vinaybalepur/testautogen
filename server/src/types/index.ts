@@ -6,8 +6,6 @@ export interface User {
   password_hash:          string;
   is_active:              boolean;
   last_login_at:          Date | null;
-  session_fingerprint:    string | null;
-  fingerprint_created_at: Date | null;
   created_at:             Date;
 }
 
@@ -72,6 +70,7 @@ declare global {
   namespace Express {
     interface Request {
       userId?: number;
+      role?:   string; 
     }
   }
 }

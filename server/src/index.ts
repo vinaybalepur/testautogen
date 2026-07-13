@@ -11,6 +11,8 @@ import postmanRoutes    from './routes/postman';
 import newmanRoutes   from './routes/newman'; 
 import pool             from './config/db';
 import defectRoutes    from './routes/defects'; 
+import adminRoutes from './routes/admin';
+import tokenRoutes  from './routes/tokens';  
 
 import  './config/db';
 
@@ -37,6 +39,9 @@ app.use('/api/push',       jiraPushRoutes);
 app.use('/api/postman',   postmanRoutes);
 app.use('/api/newman',    newmanRoutes);  
 app.use('/api/defects',   defectRoutes); 
+app.use('/api/admin', adminRoutes); 
+app.use('/api/tokens',    tokenRoutes); 
+
 
 // Health check route
 app.get('/health', (req, res) => {
