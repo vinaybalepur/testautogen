@@ -113,3 +113,34 @@ export const ticketExistsInJIRA = async (jiraKey: string): Promise<boolean> => {
     return false;
   }
 };
+
+// ── Create a Bug defect in Jira ────────────────────────
+export const createDefect = async (
+  ticketKey:    string,
+  summary:      string,
+  description:  string
+): Promise<string> => {
+
+  // Extract project key from ticket key e.g. SCRUM from SCRUM-7
+  const projectKey = ticketKey.split('-')[0];
+
+  const response = await jiraClient.post('/rest/api/3/issue', {
+    fields: {
+      project:   { key: projectKey },
+      summary,
+      description: {
+        type:    'doc',
+        version: 1,
+        content: [
+          {
+            type:    'paragraph',
+            content: [{ type: 'text', text: description }]
+          }
+        ]
+      },
+      issuetype: { name: 'Bug' }
+    }
+  });
+
+  return response.data.key;
+};
