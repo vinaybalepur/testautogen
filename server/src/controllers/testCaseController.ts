@@ -46,6 +46,40 @@ export const getTestCases = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// ── APPROVE ALL TEST CASES FOR A TICKET ───────────────
+export const approveAllTestCases = async (req: Request, res: Response): Promise<void> => {
+  const ticketKey = req.params.ticketKey as string;
+
+  try {
+    const result = await pool.query(
+      `UPDATE test_cases
+       SET
+         status      = 'approved',
+         reviewed_by = $1,
+         reviewed_at = NOW()
+       WHERE jira_id = $2
+       AND   user_id = $3
+       AND   status  = 'draft'
+       RETURNING id`,
+      [req.userId, ticketKey, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'No draft test cases found for this ticket' });
+      return;
+    }
+
+    res.json({
+      message:  `Approved ${result.rows.length} test cases`,
+      approved: result.rows.length
+    });
+
+  } catch (err) {
+    console.error('Approve all error:', err);
+    res.status(500).json({ error: 'Failed to approve all test cases' });
+  }
+};
+
 // ── APPROVE TEST CASE ──────────────────────────────────
 export const approveTestCase = async (req: Request, res: Response): Promise<void> => {
   const id = req.params.id as string;

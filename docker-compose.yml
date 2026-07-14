@@ -1,0 +1,66 @@
+services:
+
+  # ── PostgreSQL Database ──────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: jira-testgen-db
+    environment:
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB:       ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql  # auto run schema on first start
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+    networks:
+      - jira-testgen-network
+
+  # ── Backend API ──────────────────────────────────────
+  server:
+    build:
+      context:    ./server
+      dockerfile: Dockerfile
+    container_name: jira-testgen-server
+    environment:
+      PORT:                    ${PORT}
+      DATABASE_URL:            postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      JWT_SECRET:              ${JWT_SECRET}
+      JWT_EXPIRES_IN:          ${JWT_EXPIRES_IN}
+      CLIENT_URL:              ${CLIENT_URL}
+      NODE_ENV:                production
+      JIRA_BASE_URL:           ${JIRA_BASE_URL}
+      JIRA_EMAIL:              ${JIRA_EMAIL}
+      JIRA_API_TOKEN:          ${JIRA_API_TOKEN}
+      JIRA_TEST_PROJECT_KEY:   ${JIRA_TEST_PROJECT_KEY}
+      GITHUB_TOKEN:            ${GITHUB_TOKEN}
+      COPILOT_MODEL:           ${COPILOT_MODEL}
+      GEMINI_API_KEY:          ${GEMINI_API_KEY}
+      ANTHROPIC_API_KEY:       ${ANTHROPIC_API_KEY}
+      NEWMAN_TIMEOUT_MS:       ${NEWMAN_TIMEOUT_MS}
+      REPORT_RETENTION_DAYS:   ${REPORT_RETENTION_DAYS}
+    ports:
+      - "${PORT}:${PORT}"
+    volumes:
+      - reports_data:/app/reports
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - jira-testgen-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  reports_data:                     
+    driver: local
+
+networks:
+  jira-testgen-network:
+    driver: bridge
