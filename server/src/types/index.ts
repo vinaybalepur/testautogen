@@ -7,6 +7,7 @@ export interface User {
   is_active:              boolean;
   last_login_at:          Date | null;
   created_at:             Date;
+  role:                   string;
 }
 
 export interface JwtPayload {

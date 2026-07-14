@@ -1,7 +1,8 @@
-import { Router }          from 'express';
+import { Router }           from 'express';
 import {
   getTestCases,
   approveTestCase,
+  approveAllTestCases,
   rejectTestCase,
   updateTestCase,
   downloadTestCases,
@@ -12,13 +13,16 @@ import authenticate         from '../middleware/authenticate';
 
 const router = Router();
 
-// All routes are protected
-router.get('/:ticketKey',          authenticate, getTestCases);
-router.get('/:ticketKey/download', authenticate, downloadTestCases);
-router.put('/:id/approve',         authenticate, approveTestCase);
-router.put('/:id/reject',          authenticate, rejectTestCase);
-router.put('/:id',                 authenticate, updateTestCase);
-router.delete('/:id',              authenticate, deleteTestCase);
-router.post('/:ticketKey/upload',  authenticate, uploadTestCases);
+// Specific routes FIRST
+router.get('/:ticketKey/download',     authenticate, downloadTestCases);
+router.post('/:ticketKey/upload',      authenticate, uploadTestCases);
+router.put('/:ticketKey/approve-all',  authenticate, approveAllTestCases);
+
+// Dynamic ID routes LAST
+router.get('/:ticketKey',              authenticate, getTestCases);
+router.put('/:id/approve',             authenticate, approveTestCase);
+router.put('/:id/reject',              authenticate, rejectTestCase);
+router.put('/:id',                     authenticate, updateTestCase);
+router.delete('/:id',                  authenticate, deleteTestCase);
 
 export default router;

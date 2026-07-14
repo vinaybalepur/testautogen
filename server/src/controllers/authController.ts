@@ -1,14 +1,14 @@
-import { Request, Response }  from 'express';
-import bcrypt                  from 'bcryptjs';
-import pool                    from '../config/db';
-import { User }                from '../types';
+import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import pool from '../config/db';
+import { User } from '../types';
 import {
   generateAccessToken,
   generateRefreshToken,
   storeRefreshToken,
   setTokenCookies,
   clearTokenCookies
-}                              from '../utils/tokens';
+} from '../utils/tokens';
 
 // ── REGISTER ──────────────────────────────────────────
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -39,32 +39,38 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     // Hash password
     const password_hash = await bcrypt.hash(password, 12);
 
+    // Check if any users exist
+    const userCount = await pool.query(
+      'SELECT COUNT(*) FROM users'
+    );
+
+    // First user gets admin role automatically
+    const role = parseInt(userCount.rows[0].count) === 0 ? 'admin' : 'user';
+
+    // Insert new user
     // Insert new user
     const result = await pool.query<User>(
-      `INSERT INTO users (first_name, last_name, email, password_hash)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, first_name, last_name, email, created_at`,
-      [first_name, last_name, email, password_hash]
+      `INSERT INTO users (first_name, last_name, email, password_hash, role)
+   VALUES ($1, $2, $3, $4, $5)
+   RETURNING id, first_name, last_name, email, role, created_at`,
+      [first_name, last_name, email, password_hash, role]
     );
 
     const user = result.rows[0];
 
-    // Generate tokens
-    const accessToken  = generateAccessToken(user.id);
+    const accessToken = generateAccessToken(user.id);
     const refreshToken = generateRefreshToken();
 
-    // Store refresh token in DB
     await storeRefreshToken(user.id, refreshToken);
-
-    // Set both cookies
     setTokenCookies(res, accessToken, refreshToken);
 
     res.status(201).json({
       message: 'Registration successful',
       user: {
-        id:         user.id,
+        id: user.id,
         first_name: user.first_name,
-        email:      user.email
+        email: user.email,
+        role: user.role
       }
     });
 
@@ -117,7 +123,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     );
 
     // Generate fresh tokens
-    const accessToken  = generateAccessToken(user.id);
+    const accessToken = generateAccessToken(user.id);
     const refreshToken = generateRefreshToken();
 
     // Store new refresh token in DB
@@ -129,9 +135,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.json({
       message: 'Login successful',
       user: {
-        id:         user.id,
+        id: user.id,
         first_name: user.first_name,
-        email:      user.email
+        email: user.email
       }
     });
 
@@ -177,7 +183,7 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     );
 
     // Generate new token pair
-    const newAccessToken  = generateAccessToken(storedToken.user_id);
+    const newAccessToken = generateAccessToken(storedToken.user_id);
     const newRefreshToken = generateRefreshToken();
 
     // Store new refresh token
