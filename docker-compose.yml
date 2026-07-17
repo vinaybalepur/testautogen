@@ -55,10 +55,26 @@ services:
       - jira-testgen-network
     restart: unless-stopped
 
+  # ── Frontend (React + nginx) ─────────────────────────
+  client:
+    build:
+      context:    ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api   # nginx proxies /api → backend internally
+    container_name: jira-testgen-client
+    ports:
+      - "80:80"              # App accessible at http://localhost
+    depends_on:
+      - server
+    networks:
+      - jira-testgen-network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local
-  reports_data:                     
+  reports_data:
     driver: local
 
 networks:
