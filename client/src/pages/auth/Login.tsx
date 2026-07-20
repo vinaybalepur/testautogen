@@ -1,32 +1,63 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate }           from 'react-router-dom';
+import { useAuth }                     from '../../context/AuthContext';
 
 const Login: React.FC = () => {
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const { login, user } = useAuth();
+  const navigate         = useNavigate();
 
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
 
+  // Already logged in → redirect
+  useEffect(() => {
+    if (user) navigate('/dashboard');
+  }, [user, navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Client side validation
+    if (!email.trim()) {
+      setError('Email is required');
+      return;
+    }
+    if (!password) {
+      setError('Password is required');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/');
+      const user = await login(email, password);
+      navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed. Check your credentials.');
+      const code    = err.response?.data?.code;
+      const message = err.response?.data?.error;
+
+      if (code === 'TOKEN_EXPIRED') {
+        setError('Session expired. Please login again.');
+      } else if (err.response?.status === 401) {
+        setError('Invalid email or password.');
+      } else if (!err.response) {
+        setError('Cannot connect to server. Please try again.');
+      } else {
+        setError(message || 'Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <header className="app-header">
         <div className="header-logo">
@@ -65,6 +96,7 @@ const Login: React.FC = () => {
                   onChange={e => setEmail(e.target.value)}
                   required
                   autoFocus
+                  disabled={loading}
                 />
               </div>
 
@@ -77,6 +109,7 @@ const Login: React.FC = () => {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
 

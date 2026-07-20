@@ -26,7 +26,7 @@ api.interceptors.response.use(
       err.response?.status === 401 &&
       code === 'TOKEN_EXPIRED' &&
       !original._retry &&
-      !original.url?.includes('/auth/refresh')
+      !original._retry || original.url?.includes('/auth/refresh')
     ) {
       if (isRefreshing) {
         // Queue subsequent requests while refresh is in-flight
