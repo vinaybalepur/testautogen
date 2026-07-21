@@ -1,0 +1,51 @@
+:root {
+  font-family:    Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height:    1.5;
+  font-weight:    400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing:   antialiased;
+  -moz-osx-font-smoothing:  grayscale;
+
+  /* ── Color Variables ── */
+  --bg-primary:    #f1f5f9;   /* ← change this one value to change everywhere */
+  --bg-secondary:  #ffffff;
+  --bg-card:       #ffffff;
+  --text-primary:  #1e293b;
+  --text-secondary:#64748b;
+  --border:        #e2e8f0;
+  --accent:        #6366f1;
+  --accent-hover:  #4f46e5;
+}
+
+body {
+  margin:           0;
+  min-width:        320px;
+  min-height:       100vh;
+  background-color: var(--bg-primary);
+  color:            var(--text-primary);
+}
+
+a {
+  font-weight:     500;
+  color:           var(--accent);
+  text-decoration: inherit;
+}
+a:hover {
+  color: var(--accent-hover);
+}
+
+button {
+  border-radius:    8px;
+  border:           1px solid transparent;
+  padding:          0.6em 1.2em;
+  font-size:        1em;
+  font-weight:      500;
+  font-family:      inherit;
+  background-color: var(--bg-secondary);
+  cursor:           pointer;
+  transition:       border-color 0.25s;
+}
+button:hover {
+  border-color: var(--accent);
+}

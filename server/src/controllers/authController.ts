@@ -69,6 +69,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       user: {
         id: user.id,
         first_name: user.first_name,
+        last_name:  user.last_name,
         email: user.email,
         role: user.role
       }
@@ -137,7 +138,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       user: {
         id: user.id,
         first_name: user.first_name,
-        email: user.email
+        last_name:user.last_name,
+        email: user.email,
+        role: user.role
       }
     });
 
