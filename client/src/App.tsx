@@ -3,7 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
-import Home from './pages/Home';
+import Dashboard from './pages/Dashboard';
+import Settings from './pages/Settings';
 import './styles/globals.css';
 
 // Redirect to /login if not authenticated
@@ -31,7 +32,8 @@ const AppRoutes: React.FC = () => (
   <Routes>
     <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
     <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-    <Route path="/"         element={<PrivateRoute><Home /></PrivateRoute>} />
+    <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+    <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
     <Route path="*"         element={<Navigate to="/" replace />} />
   </Routes>
 );

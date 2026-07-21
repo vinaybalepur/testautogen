@@ -13,6 +13,7 @@ import pool             from './config/db';
 import defectRoutes    from './routes/defects'; 
 import adminRoutes from './routes/admin';
 import tokenRoutes  from './routes/tokens';  
+import aiConfigRoutes from './routes/aiConfig'; 
 
 import  './config/db';
 
@@ -41,6 +42,7 @@ app.use('/api/newman',    newmanRoutes);
 app.use('/api/defects',   defectRoutes); 
 app.use('/api/admin', adminRoutes); 
 app.use('/api/tokens',    tokenRoutes); 
+app.use('/api/ai-config', aiConfigRoutes); 
 
 
 // Health check route

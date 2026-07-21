@@ -44,6 +44,7 @@ services:
       ANTHROPIC_API_KEY:       ${ANTHROPIC_API_KEY}
       NEWMAN_TIMEOUT_MS:       ${NEWMAN_TIMEOUT_MS}
       REPORT_RETENTION_DAYS:   ${REPORT_RETENTION_DAYS}
+      ENCRYPTION_KEY:          ${ENCRYPTION_KEY}
     ports:
       - "${PORT}:${PORT}"
     volumes:
