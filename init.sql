@@ -123,3 +123,52 @@ CREATE TABLE IF NOT EXISTS defects (
 CREATE INDEX IF NOT EXISTS idx_defects_test_case ON defects(test_case_id);
 CREATE INDEX IF NOT EXISTS idx_defects_run       ON defects(run_id);
 CREATE INDEX IF NOT EXISTS idx_defects_ticket    ON defects(ticket_key);
+
+-- 8. AI MODELS (cache + fallback)
+CREATE TABLE IF NOT EXISTS ai_models (
+  id           SERIAL PRIMARY KEY,
+  provider     VARCHAR(50)  NOT NULL,
+  model_id     VARCHAR(100) NOT NULL,
+  model_name   VARCHAR(100) NOT NULL,
+  is_active    BOOLEAN DEFAULT TRUE,
+  last_synced  TIMESTAMP DEFAULT NOW(),
+  UNIQUE (provider, model_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_models_provider ON ai_models(provider);
+
+-- 9. USER AI CONFIGS (encrypted keys)
+CREATE TABLE IF NOT EXISTS user_ai_configs (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  provider   VARCHAR(50) NOT NULL,
+  api_key    TEXT NOT NULL,
+  is_active  BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE (user_id, provider)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_ai_configs_user     ON user_ai_configs(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_ai_configs_provider ON user_ai_configs(provider);
+
+-- Add role to users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'
+CHECK (role IN ('admin', 'user'));
+
+-- Add status modified to test_cases
+ALTER TABLE test_cases DROP CONSTRAINT IF EXISTS test_cases_status_check;
+ALTER TABLE test_cases ADD CONSTRAINT test_cases_status_check
+CHECK (status IN ('draft', 'approved', 'rejected', 'modified'));
+
+-- Add extra columns to test_cases
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS defect_jira_id   VARCHAR(50);
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS jira_subtask_key VARCHAR(50);
+
+-- Add report_path to test_runs
+ALTER TABLE test_runs ADD COLUMN IF NOT EXISTS report_path TEXT;
+
+-- Add timeout to test_runs status check
+ALTER TABLE test_runs DROP CONSTRAINT IF EXISTS test_runs_status_check;
+ALTER TABLE test_runs ADD CONSTRAINT test_runs_status_check
+CHECK (status IN ('pending', 'running', 'passed', 'failed', 'error', 'timeout'));

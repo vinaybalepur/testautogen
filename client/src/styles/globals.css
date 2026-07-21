@@ -4,13 +4,13 @@
 
 /* ── CSS Variables ─────────────────────────────────── */
 :root {
-  --bg-primary:    #666666;
-  --bg-secondary:  #565656;
-  --bg-card:       #ffffff;
+ --bg-primary:    #ffffff;   /* ← change this one value to change everywhere */
+  --bg-secondary:  hsl(0, 0%, 100%);
+  --bg-card:       #e2f8df;
   --text-primary:  #000000;
-  --text-secondary:#001a3f;
-  --border:        #030303; 
-  --accent:        #6366f1;
+  --text-secondary:#6f2323;
+  --border:        #e2e8f0;
+  --accent:        #000000;
   --accent-hover:  #4f46e5;
 }
 

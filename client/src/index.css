@@ -8,9 +8,9 @@
   -moz-osx-font-smoothing:  grayscale;
 
   /* ── Color Variables ── */
-  --bg-primary:    #f1f5f9;   /* ← change this one value to change everywhere */
+  --bg-primary:    #ffffff;   /* ← change this one value to change everywhere */
   --bg-secondary:  #ffffff;
-  --bg-card:       #ffffff;
+  --bg-card:       #fb9e79;
   --text-primary:  #1e293b;
   --text-secondary:#64748b;
   --border:        #e2e8f0;
