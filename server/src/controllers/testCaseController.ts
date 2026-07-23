@@ -25,6 +25,7 @@ export const getTestCases = async (req: Request, res: Response): Promise<void> =
         test_case,
         status,
         defect_jira_id,
+        jira_subtask_key,
         reviewed_by,
         created_at,
         updated_at
@@ -159,11 +160,10 @@ export const updateTestCase = async (req: Request, res: Response): Promise<void>
       `UPDATE test_cases
        SET
          test_case      = COALESCE($1, test_case),
-         defect_jira_id = COALESCE($2, defect_jira_id)
-         -- If already pushed to Jira, mark as modified
+         defect_jira_id = COALESCE($2, defect_jira_id),
          status         = CASE
                             WHEN jira_subtask_key IS NOT NULL AND $1 IS NOT NULL
-                            THEN 'modified'
+                            THEN 'approved_modified'
                             ELSE status
                           END
        WHERE id      = $3

@@ -20,7 +20,7 @@ export const pushTestCasesToJira = async (req: Request, res: Response): Promise<
        `SELECT * FROM test_cases
        WHERE jira_id = $1
        AND   user_id = $2
-       AND   status  IN ('approved', 'modified')`,
+       AND   status  IN ('approved', 'approved_modified')`,
             [ticketKey, req.userId]
         );
 
@@ -34,64 +34,47 @@ export const pushTestCasesToJira = async (req: Request, res: Response): Promise<
         const failed: any[] = [];
 
         for (const testCase of result.rows) {
-            try {
-                
-                if (testCase.status === 'modified' && testCase.jira_subtask_key) {
-                    
-                    if (!await ticketExistsInJIRA(testCase.jira_subtask_key)) {
-                        
-                         const jiraKey = await createTicketInJIRA(ticketKey, testCase);
-                        // Store Jira key in DB
-                        
-                        await pool.query(
-                        `UPDATE test_cases SET jira_subtask_key = $1 WHERE id = $2`,
-                        [jiraKey, testCase.id]
-                    );
-                    } else {
-                       // ── UPDATE existing Jira ticket ──────────────
-                        await updateTestTicket(
-                            testCase.jira_subtask_key,
-                            testCase.test_case
-                        );
-                    }
-
-                    // Reset status back to approved
-                    await pool.query(
-                        `UPDATE test_cases 
-                    SET status = 'approved' 
-                    WHERE id = $1`,
-                        [testCase.id]
-                    );
-
-                    
-
-                    updated.push({
-                        testCaseId: testCase.id,
-                        jiraKey: testCase.jira_subtask_key
-                    });
-
-                } else if (testCase.status === 'approved' && !testCase.jira_subtask_key) {
-                    // ── CREATE new Jira ticket ───────────────────
-                    const jiraKey = createTicketInJIRA(ticketKey, testCase);
-
-                    // Store Jira key in DB
-                    await pool.query(
-                        `UPDATE test_cases SET jira_subtask_key = $1 WHERE id = $2`,
-                        [jiraKey, testCase.id]
-                    );
-
-                    pushed.push({ testCaseId: testCase.id, jiraKey });
-                }
-
-            } catch (err: any) {
-                failed.push({
-                    testCaseId: testCase.id,
-                    error: err.response?.data?.errors ||
-                        err.response?.data?.errorMessages ||
-                        err.message
-                });
-            }
-        }
+  try {
+    if (testCase.jira_subtask_key) {
+      // Already pushed — check if needs update
+      if (!await ticketExistsInJIRA(testCase.jira_subtask_key)) {
+        // Recreate deleted ticket
+        const jiraKey = await createTicketInJIRA(ticketKey, testCase);
+        await pool.query(
+          `UPDATE test_cases
+           SET jira_subtask_key = $1, status = 'approved'
+           WHERE id = $2`,
+          [jiraKey, testCase.id]
+        );
+        updated.push({ testCaseId: testCase.id, jiraKey });
+      } else if (testCase.status === 'approved_modified') {
+        // Modified — update Jira
+        await updateTestTicket(testCase.jira_subtask_key, testCase.test_case);
+        await pool.query(
+          `UPDATE test_cases SET status = 'approved' WHERE id = $1`,
+          [testCase.id]
+        );
+        updated.push({ testCaseId: testCase.id, jiraKey: testCase.jira_subtask_key });
+      } else {
+        // Approved but unchanged — skip
+        console.log(`Test case ${testCase.id} unchanged — skipping`);
+      }
+    } else {
+      // Never pushed — create new
+      const jiraKey = await createTicketInJIRA(ticketKey, testCase);
+      await pool.query(
+        `UPDATE test_cases
+         SET jira_subtask_key = $1, status = 'approved'
+         WHERE id = $2`,
+        [jiraKey, testCase.id]
+      );
+      pushed.push({ testCaseId: testCase.id, jiraKey });
+    }
+  } catch (err: any) {
+    console.error(`Failed test case ${testCase.id}:`, err.message);
+    failed.push({ testCaseId: testCase.id, error: err.message });
+  }
+}
 
         res.json({
             message: `Pushed ${pushed.length} new, updated ${updated.length} modified test cases`,
