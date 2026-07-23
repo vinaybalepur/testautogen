@@ -5,79 +5,79 @@ import api from '../services/api';
 
 // ── Types ──────────────────────────────────────────────
 interface JiraTicket {
-  key:         string;
-  summary:     string;
-  status:      string;
-  priority:    string;
-  issueType:   string;
-  reporter:    string;
-  assignee:    string | null;
+  key: string;
+  summary: string;
+  status: string;
+  priority: string;
+  issueType: string;
+  reporter: string;
+  assignee: string | null;
   description: string | null;
 }
 
 interface AIConfig {
-  provider:  string;
+  provider: string;
   is_active: boolean;
 }
 
 interface AIModel {
-  model_id:   string;
+  model_id: string;
   model_name: string;
 }
 
 interface TestCase {
-  id:               number;
-  jira_id:          string;
-  test_case:        string;
-  status:           string;
-  defect_jira_id:   string | null;
+  id: number;
+  jira_id: string;
+  test_case: string;
+  status: string;
+  defect_jira_id: string | null;
   jira_subtask_key: string | null;
-  reviewed_by:      number | null;
-  created_at:       string;
-  updated_at:       string;
+  reviewed_by: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 type TabType = 'details' | 'generate' | 'testcases' | 'postman' | 'runs' | 'defects';
 
 const TABS: { id: TabType; label: string; icon: string }[] = [
-  { id: 'details',   label: 'Ticket Details', icon: '📋' },
-  { id: 'testcases', label: 'Test Cases',      icon: '✅' },
-  { id: 'generate',  label: 'Generate',        icon: '🤖' },
-  { id: 'postman',   label: 'Postman',         icon: '📮' },
-  { id: 'runs',      label: 'Runs',            icon: '🏃' },
-  { id: 'defects',   label: 'Defects',         icon: '🐛' },
+  { id: 'details', label: 'Ticket Details', icon: '📋' },
+  { id: 'testcases', label: 'Test Cases', icon: '✅' },
+  { id: 'generate', label: 'Generate', icon: '🤖' },
+  { id: 'postman', label: 'Postman', icon: '📮' },
+  { id: 'runs', label: 'Runs', icon: '🏃' },
+  { id: 'defects', label: 'Defects', icon: '🐛' },
 ];
 
 const TicketDetail: React.FC = () => {
-  const { ticketKey }          = useParams<{ ticketKey: string }>();
-  const [searchParams]         = useSearchParams();
-  const navigate               = useNavigate();
-  const { user, logout }       = useAuth();
+  const { ticketKey } = useParams<{ ticketKey: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const defaultTab = searchParams.get('action') === 'generate' ? 'generate' : 'details';
   const [activeTab, setActiveTab] = useState<TabType>(defaultTab as TabType);
 
   // Ticket
-  const [ticket, setTicket]           = useState<JiraTicket | null>(null);
+  const [ticket, setTicket] = useState<JiraTicket | null>(null);
   const [ticketLoading, setTicketLoading] = useState(true);
   const [ticketError, setTicketError] = useState('');
 
   // Generate tab
-  const [aiConfigs, setAIConfigs]             = useState<AIConfig[]>([]);
+  const [aiConfigs, setAIConfigs] = useState<AIConfig[]>([]);
   const [selectedProvider, setSelectedProvider] = useState('');
-  const [models, setModels]                   = useState<AIModel[]>([]);
-  const [selectedModel, setSelectedModel]     = useState('');
-  const [modelsLoading, setModelsLoading]     = useState(false);
-  const [generating, setGenerating]           = useState(false);
-  const [generateMsg, setGenerateMsg]         = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [regenModal, setRegenModal]           = useState(false);
+  const [models, setModels] = useState<AIModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateMsg, setGenerateMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [regenModal, setRegenModal] = useState(false);
 
   // Test Cases tab
-  const [testCases, setTestCases]     = useState<TestCase[]>([]);
-  const [tcLoading, setTcLoading]     = useState(false);
+  const [testCases, setTestCases] = useState<TestCase[]>([]);
+  const [tcLoading, setTcLoading] = useState(false);
   const [approvingAll, setApprovingAll] = useState(false);
-  const [editingId, setEditingId]     = useState<number | null>(null);
-  const [editText, setEditText]       = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState('');
   const [deleteModal, setDeleteModal] = useState<number | null>(null);
 
   // Upload csv file
@@ -85,6 +85,9 @@ const TicketDetail: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  //Pushing test cases to jira
+  const [pushing, setPushing] = useState(false);
+  const [pushMsg, setPushMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (!ticketKey) return;
@@ -116,7 +119,7 @@ const TicketDetail: React.FC = () => {
   const fetchAIConfigs = async () => {
     try {
       const { data } = await api.get('/ai-config');
-      const active   = data.configs.filter((c: AIConfig) => c.is_active);
+      const active = data.configs.filter((c: AIConfig) => c.is_active);
       setAIConfigs(active);
       if (active.length > 0) setSelectedProvider(active[0].provider);
     } catch (err) {
@@ -143,7 +146,7 @@ const TicketDetail: React.FC = () => {
     setTcLoading(true);
     try {
       const { data } = await api.get(`/testcases/${ticketKey}`);
-      const sorted   = data.testCases.sort((a: TestCase, b: TestCase) => a.id - b.id);
+      const sorted = data.testCases.sort((a: TestCase, b: TestCase) => a.id - b.id);
       setTestCases(sorted);
     } catch (err) {
       console.error('Failed to fetch test cases:', err);
@@ -159,8 +162,8 @@ const TicketDetail: React.FC = () => {
     try {
       const { data } = await api.post('/ai/generate', {
         ticketKey,
-        provider:    selectedProvider,
-        model:       selectedModel,
+        provider: selectedProvider,
+        model: selectedModel,
         modelFamily: selectedProvider
       });
       setGenerateMsg({
@@ -237,9 +240,9 @@ const TicketDetail: React.FC = () => {
       const response = await api.get(`/testcases/${ticketKey}/download`, {
         responseType: 'blob'
       });
-      const url  = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
-      link.href  = url;
+      link.href = url;
       link.setAttribute('download', `${ticketKey}-testcases.csv`);
       document.body.appendChild(link);
       link.click();
@@ -256,59 +259,81 @@ const TicketDetail: React.FC = () => {
 
   // Upload CSV file
   const handleUploadCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  setUploading(true);
-  setUploadMsg(null);
+    setUploading(true);
+    setUploadMsg(null);
 
-  try {
-    const text = await file.text();
-    const { data } = await api.post(
-      `/testcases/${ticketKey}/upload`,
-      { csv: text },
-      {
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
-    
-    setUploadMsg({
-        
-      type: 'success',
-      text: `✅ ${data.message}`,
-      
-    });
-    fetchTestCases();
-  } catch (err: any) {
-    console.error('Upload error:', err.response?.data);
-    const errData = err.response?.data;
-    setUploadMsg({
-      type: 'error',
-      text: errData?.message
-    ? `${errData.error} — ${errData.message}`
-    : errData?.error || 'Failed to upload CSV'
-    });
-  } finally {
-    
-    setUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }
- 
-};
+    try {
+      const text = await file.text();
+      const { data } = await api.post(
+        `/testcases/${ticketKey}/upload`,
+        { csv: text },
+        {
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+
+      setUploadMsg({
+
+        type: 'success',
+        text: `✅ ${data.message}`,
+
+      });
+      fetchTestCases();
+    } catch (err: any) {
+      console.error('Upload error:', err.response?.data);
+      const errData = err.response?.data;
+      setUploadMsg({
+        type: 'error',
+        text: errData?.message
+          ? `${errData.error} — ${errData.message}`
+          : errData?.error || 'Failed to upload CSV'
+      });
+    } finally {
+
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+
+  };
+
+  //Pushing approved test cases to jira
+  const handlePushToJira = async () => {
+    setPushing(true);
+    setPushMsg(null);
+    try {
+      const { data } = await api.post(`/push/${ticketKey}/push`);
+      setPushMsg({
+        type: 'success',
+        text: `✅ Pushed ${data.pushed.length} new, updated ${data.updated.length} test cases to Jira`
+      });
+      fetchTestCases();
+    } catch (err: any) {
+      setPushMsg({
+        type: 'error',
+        text: err.response?.data?.error || 'Failed to push to Jira'
+      });
+    } finally {
+      setPushing(false);
+    }
+  };
 
   const statusColor: Record<string, string> = {
-    draft:    '#64748b',
+    draft: '#64748b',
     approved: '#10b981',
     rejected: '#ef4444',
-    modified: '#f59e0b'
+    modified: '#f59e0b',
+    approved_modified: '#10b981'
   };
 
   const priorityColor: Record<string, string> = {
-    High:    '#ef4444',
-    Medium:  '#f59e0b',
-    Low:     '#10b981',
+    High: '#ef4444',
+    Medium: '#f59e0b',
+    Low: '#10b981',
     Highest: '#dc2626',
-    Lowest:  '#6366f1'
+    Lowest: '#6366f1'
   };
 
   return (
@@ -342,12 +367,12 @@ const TicketDetail: React.FC = () => {
 
       {/* Ticket Key Banner */}
       <div style={{
-        background:  'linear-gradient(135deg, #6366f1, #8b5cf6)',
-        padding:     '16px 32px',
-        color:       'white',
-        display:     'flex',
-        alignItems:  'center',
-        gap:         12
+        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+        padding: '16px 32px',
+        color: 'white',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12
       }}>
         <span style={{ fontSize: '1.1em', fontWeight: 700 }}>{ticketKey}</span>
         {ticket && (
@@ -360,28 +385,28 @@ const TicketDetail: React.FC = () => {
 
       {/* Tabs */}
       <div style={{
-        background:   'var(--bg-secondary)',
+        background: 'var(--bg-secondary)',
         borderBottom: '1px solid var(--border)',
-        padding:      '0 24px',
-        display:      'flex',
-        gap:          4,
-        overflowX:    'auto'
+        padding: '0 24px',
+        display: 'flex',
+        gap: 4,
+        overflowX: 'auto'
       }}>
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             style={{
-              padding:      '14px 18px',
-              border:       'none',
-              background:   'none',
-              cursor:       'pointer',
-              fontSize:     '0.875em',
-              fontWeight:   activeTab === tab.id ? 600 : 400,
-              color:        activeTab === tab.id ? '#6366f1' : 'var(--text-secondary)',
+              padding: '14px 18px',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875em',
+              fontWeight: activeTab === tab.id ? 600 : 400,
+              color: activeTab === tab.id ? '#6366f1' : 'var(--text-secondary)',
               borderBottom: activeTab === tab.id ? '2px solid #6366f1' : '2px solid transparent',
-              whiteSpace:   'nowrap',
-              transition:   'all 0.15s'
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s'
             }}
           >
             {tab.icon} {tab.label}
@@ -411,26 +436,26 @@ const TicketDetail: React.FC = () => {
                     <div className="card-subtitle">{ticket.issueType}</div>
                   </div>
                   <span style={{
-                    marginLeft:   'auto',
-                    fontSize:     '0.78em',
-                    padding:      '3px 10px',
+                    marginLeft: 'auto',
+                    fontSize: '0.78em',
+                    padding: '3px 10px',
                     borderRadius: 20,
-                    background:   'rgba(99,102,241,0.1)',
-                    color:        '#6366f1',
-                    fontWeight:   500
+                    background: 'rgba(99,102,241,0.1)',
+                    color: '#6366f1',
+                    fontWeight: 500
                   }}>
                     {ticket.status}
                   </span>
                 </div>
 
                 <div style={{
-                  background:   'var(--bg-primary)',
+                  background: 'var(--bg-primary)',
                   borderRadius: 10,
-                  padding:      14,
+                  padding: 14,
                   marginBottom: 20,
-                  fontSize:     '0.95em',
-                  color:        'var(--text-primary)',
-                  fontWeight:   500
+                  fontSize: '0.95em',
+                  color: 'var(--text-primary)',
+                  fontWeight: 500
                 }}>
                   {ticket.summary}
                 </div>
@@ -441,13 +466,13 @@ const TicketDetail: React.FC = () => {
                       DESCRIPTION
                     </div>
                     <div style={{
-                      background:   'var(--bg-primary)',
+                      background: 'var(--bg-primary)',
                       borderRadius: 10,
-                      padding:      14,
-                      fontSize:     '0.875em',
-                      color:        'var(--text-primary)',
-                      lineHeight:   1.6,
-                      whiteSpace:   'pre-wrap'
+                      padding: 14,
+                      fontSize: '0.875em',
+                      color: 'var(--text-primary)',
+                      lineHeight: 1.6,
+                      whiteSpace: 'pre-wrap'
                     }}>
                       {ticket.description}
                     </div>
@@ -456,15 +481,15 @@ const TicketDetail: React.FC = () => {
 
                 <div className="grid-2">
                   {[
-                    { label: 'Priority', value: ticket.priority,                color: priorityColor[ticket.priority] },
-                    { label: 'Reporter', value: ticket.reporter,                color: undefined },
+                    { label: 'Priority', value: ticket.priority, color: priorityColor[ticket.priority] },
+                    { label: 'Reporter', value: ticket.reporter, color: undefined },
                     { label: 'Assignee', value: ticket.assignee || 'Unassigned', color: undefined },
-                    { label: 'Type',     value: ticket.issueType,               color: undefined }
+                    { label: 'Type', value: ticket.issueType, color: undefined }
                   ].map(item => (
                     <div key={item.label} style={{
-                      background:   'var(--bg-primary)',
+                      background: 'var(--bg-primary)',
                       borderRadius: 8,
-                      padding:      '10px 14px'
+                      padding: '10px 14px'
                     }}>
                       <div style={{ fontSize: '0.72em', color: 'var(--text-secondary)', marginBottom: 4 }}>
                         {item.label}
@@ -514,8 +539,8 @@ const TicketDetail: React.FC = () => {
                         style={{ textTransform: 'capitalize' }}
                       >
                         {config.provider === 'copilot' && '🐙 '}
-                        {config.provider === 'gemini'  && '✨ '}
-                        {config.provider === 'claude'  && '🤖 '}
+                        {config.provider === 'gemini' && '✨ '}
+                        {config.provider === 'claude' && '🤖 '}
                         {config.provider}
                       </button>
                     ))}
@@ -588,7 +613,7 @@ const TicketDetail: React.FC = () => {
                 <button
                   onClick={handleApproveAll}
                   className="btn btn-success btn-sm"
-                  title = "Approve"
+                  title="Approve"
                   disabled={approvingAll || testCases.length === 0}
                 >
                   {approvingAll ? <span className="spinner" /> : '✅'} Approve All
@@ -600,35 +625,47 @@ const TicketDetail: React.FC = () => {
                 >
                   ⬇️ Download CSV
                 </button>
-                
-                 {/* ← Add upload button */}
-  <button
-    onClick={() => fileInputRef.current?.click()}
-    className="btn btn-secondary btn-sm"
-    disabled={uploading}
-    title="Upload modified CSV"
-  >
-    {uploading ? <span className="spinner" /> : '⬆️'} Upload CSV
-  </button>
 
-  {/* Hidden file input */}
-  <input
-    ref={fileInputRef}
-    type="file"
-    accept=".csv"
-    style={{ display: 'none' }}
-    onChange={handleUploadCSV}
-  />
+                {/* ← Add upload button */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="btn btn-secondary btn-sm"
+                  disabled={uploading}
+                  title="Upload modified CSV"
+                >
+                  {uploading ? <span className="spinner" /> : '⬆️'} Upload CSV
+                </button>
+
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  style={{ display: 'none' }}
+                  onChange={handleUploadCSV}
+                />
                 <button
                   onClick={() => setRegenModal(true)}
                   className="btn btn-outline btn-sm"
                 >
                   🤖 Regenerate
                 </button>
+
+                {/* Push to Jira */}
+                <button
+                  onClick={handlePushToJira}
+                  className="btn btn-primary btn-sm"
+                  disabled={pushing || testCases.filter(tc => tc.status === 'approved').length === 0}
+                  title="Push all approved test cases to Jira"
+                >
+                  {pushing ? <span className="spinner" /> : '🚀'} Push to Jira
+                </button>
               </div>
             </div>
-             {uploadMsg && <div className={`status-msg ${uploadMsg.type}`}>{uploadMsg.text}</div>}
+            {uploadMsg && <div className={`status-msg ${uploadMsg.type}`}>{uploadMsg.text}</div>}
 
+            { /* Pushing test cases to jira message */}
+            {pushMsg && <div className={`status-msg ${pushMsg.type}`} style={{ marginBottom: 12 }}>{pushMsg.text}</div>}
             {tcLoading ? (
               <div className="spinner-container">
                 <span className="spinner spinner-lg" />
@@ -657,39 +694,63 @@ const TicketDetail: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: '0.75em', color: 'var(--text-secondary)' }}>#{tc.id}</span>
                         <span style={{
-                          fontSize:      '0.75em',
-                          padding:       '2px 8px',
-                          borderRadius:  12,
-                          background:    `${statusColor[tc.status]}18`,
-                          color:         statusColor[tc.status],
-                          fontWeight:    500,
+                          fontSize: '0.75em',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          background: `${statusColor[tc.status]}18`,
+                          color: statusColor[tc.status],
+                          fontWeight: 500,
                           textTransform: 'capitalize'
                         }}>
-                          {tc.status}
+                          {tc.status === 'approved_modified' ? 'approved' : tc.status}
                         </span>
-                        {tc.jira_subtask_key && (
-                          <span style={{ fontSize: '0.75em', color: '#6366f1' }}>
+                        {/* Show warning if approved_modified */}
+                        {tc.status === 'approved_modified' && (
+                          <span style={{
+                            fontSize: '0.75em',
+                            padding: '2px 8px',
+                            borderRadius: 12,
+                            background: 'rgba(245,158,11,0.1)',
+                            color: '#f59e0b',
+                            fontWeight: 500
+                          }}>
+                            ⚠️ Modified — not pushed
+                          </span>
+                        )}
+                        {tc.jira_subtask_key ? (
+                          <span style={{
+                            fontSize: '0.75em',
+                            padding: '2px 8px',
+                            borderRadius: 12,
+                            background: 'rgba(99,102,241,0.1)',
+                            color: '#6366f1',
+                            fontWeight: 500
+                          }}>
                             🔗 {tc.jira_subtask_key}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.75em', color: '#94a3b8' }}>
+                            ○ Not pushed
                           </span>
                         )}
                         {tc.defect_jira_id && (
-    <span style={{ fontSize: '0.75em', color: '#ef4444' }}>
-      🐛 {tc.defect_jira_id}
-    </span>
-  )}
+                          <span style={{ fontSize: '0.75em', color: '#ef4444' }}>
+                            🐛 {tc.defect_jira_id}
+                          </span>
+                        )}
                       </div>
 
                       {/* Action buttons */}
                       <div style={{ display: 'flex', gap: 6 }}>
-                        {tc.status !== 'approved' && (
-                          <button onClick={() => handleApprove(tc.id)} className="btn btn-success btn-sm" title="Approve">
-                            ✅
-                          </button>
+                        {tc.status !== 'approved' && tc.status !== 'approved_modified' && (
+  <button onClick={() => handleApprove(tc.id)} className="btn btn-success btn-sm" title="Approve">
+    ✅
+  </button>
                         )}
                         {tc.status !== 'rejected' && (
                           <button onClick={() => handleReject(tc.id)} className="btn btn-danger btn-sm" title="Reject test case">
                             ❌
-                            
+
                           </button>
                         )}
                         <button
@@ -716,16 +777,16 @@ const TicketDetail: React.FC = () => {
                           value={editText}
                           onChange={e => setEditText(e.target.value)}
                           style={{
-                            width:        '100%',
-                            minHeight:    120,
-                            padding:      12,
-                            border:       '1px solid var(--border)',
+                            width: '100%',
+                            minHeight: 120,
+                            padding: 12,
+                            border: '1px solid var(--border)',
                             borderRadius: 8,
-                            fontSize:     '0.85em',
-                            fontFamily:   'monospace',
-                            resize:       'vertical',
-                            background:   'var(--bg-primary)',
-                            color:        'var(--text-primary)'
+                            fontSize: '0.85em',
+                            fontFamily: 'monospace',
+                            resize: 'vertical',
+                            background: 'var(--bg-primary)',
+                            color: 'var(--text-primary)'
                           }}
                         />
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -739,12 +800,12 @@ const TicketDetail: React.FC = () => {
                       </div>
                     ) : (
                       <pre style={{
-                        fontSize:   '0.82em',
-                        color:      'var(--text-primary)',
+                        fontSize: '0.82em',
+                        color: 'var(--text-primary)',
                         whiteSpace: 'pre-wrap',
-                        wordBreak:  'break-word',
+                        wordBreak: 'break-word',
                         lineHeight: 1.6,
-                        margin:     0,
+                        margin: 0,
                         fontFamily: 'monospace'
                       }}>
                         {tc.test_case}

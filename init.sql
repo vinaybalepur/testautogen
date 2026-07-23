@@ -172,3 +172,9 @@ ALTER TABLE test_runs ADD COLUMN IF NOT EXISTS report_path TEXT;
 ALTER TABLE test_runs DROP CONSTRAINT IF EXISTS test_runs_status_check;
 ALTER TABLE test_runs ADD CONSTRAINT test_runs_status_check
 CHECK (status IN ('pending', 'running', 'passed', 'failed', 'error', 'timeout'));
+
+-- Adding new status to DB called approved_modifed. This will help in taking of care of modified test cases
+
+ALTER TABLE test_cases DROP CONSTRAINT IF EXISTS test_cases_status_check;
+ALTER TABLE test_cases ADD CONSTRAINT test_cases_status_check
+CHECK (status IN ('draft', 'approved', 'rejected', 'modified', 'approved_modified'));
