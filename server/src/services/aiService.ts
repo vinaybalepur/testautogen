@@ -5,8 +5,8 @@ import { AIRequest, AIResponse }             from '../types';
 const providerConfigs: Record<string, any> = {
   copilot: {
     url: 'https://api.githubcopilot.com/chat/completions',
-    headers: () => ({
-      'Authorization':          `Bearer ${process.env.GITHUB_TOKEN}`,
+    headers: (apiKey?: string | null) => ({                          // ← add apiKey param
+      'Authorization':          `Bearer ${apiKey || process.env.GITHUB_TOKEN}`,  // ← use apiKey
       'Content-Type':           'application/json',
       'Copilot-Integration-Id': 'vscode-chat'
     }),
@@ -29,9 +29,9 @@ const providerConfigs: Record<string, any> = {
   },
 
   gemini: {
-    url: (model: string) =>
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    headers: () => ({
+    url: (model: string, apiKey?: string | null) =>                  // ← add apiKey param
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey || process.env.GEMINI_API_KEY}`,  // ← use apiKey
+    headers: (_apiKey?: string | null) => ({                         // ← add param (unused for gemini)
       'Content-Type': 'application/json'
     }),
     buildBody: (_model: string, prompt: string) => ({
@@ -49,8 +49,8 @@ const providerConfigs: Record<string, any> = {
 
   claude: {
     url: 'https://api.anthropic.com/v1/messages',
-    headers: () => ({
-      'x-api-key':         process.env.ANTHROPIC_API_KEY,
+    headers: (apiKey?: string | null) => ({                          // ← add apiKey param
+      'x-api-key':         apiKey || process.env.ANTHROPIC_API_KEY, // ← use apiKey
       'anthropic-version': '2023-06-01',
       'Content-Type':      'application/json'
     }),
@@ -71,23 +71,29 @@ const providerConfigs: Record<string, any> = {
 const callProvider = async (
   request:  AIRequest,
   prompt:   string,
-  jsonMode: boolean = true
+  jsonMode: boolean = true,
+  userId?:  number
 ): Promise<{ content: string; tokensConsumed: number }> => {
 
   const config = providerConfigs[request.provider.toLowerCase()];
+  if (!config) throw new Error(`Unsupported AI provider: ${request.provider}`);
 
-  if (!config) {
-    throw new Error(`Unsupported AI provider: ${request.provider}`);
+  // Get API key from DB if userId provided, fallback to .env
+  let apiKey: string | null = null;
+  if (userId) {
+    const { getDecryptedKey } = await import('../controllers/aiConfigController');
+    apiKey = await getDecryptedKey(userId, request.provider);
   }
 
+  // Pass apiKey to url (for Gemini) and headers
   const url = typeof config.url === 'function'
-    ? config.url(request.model)
+    ? config.url(request.model, apiKey)    // ← pass apiKey to url
     : config.url;
 
   const response = await axios.post(
     url,
     config.buildBody(request.model, prompt, jsonMode),
-    { headers: config.headers() }
+    { headers: config.headers(apiKey) }    // ← pass apiKey to headers
   );
 
   return {
@@ -279,17 +285,22 @@ export const generateBDDTestCases = async (
 ): Promise<AIResponse> => {
 
   const prompt = request.description?.startsWith('\nYou are an expert API')
-    ? request.description    // Postman prompt — use as is
+    ? request.description
     : buildBDDPrompt(request.summary, request.description);
 
-  const { content, tokensConsumed } = await callProvider(request, prompt);
+  // Pass userId to callProvider for DB key lookup
+  const { content, tokensConsumed } = await callProvider(
+    request,
+    prompt,
+    true,
+    request.userId    // ← pass userId here
+  );
 
-  // Clean and parse response
   const clean  = content.replace(/```json|```/g, '').trim();
   const parsed = JSON.parse(clean);
 
   return {
-    testCases:      parsed.testCases || [parsed],  // BDD array or raw collection
+    testCases:      parsed.testCases || [parsed],
     tokensConsumed,
     provider:       request.provider,
     model:          request.model

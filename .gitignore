@@ -54,3 +54,4 @@ Thumbs.db
 # Reports
 newman/
 reports/
+*.html

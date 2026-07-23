@@ -1,16 +1,16 @@
 import { Request, Response } from 'express';
-import pool                   from '../config/db';
-import { Parser }             from 'json2csv';
+import pool from '../config/db';
+import { Parser } from 'json2csv';
 import { parse } from 'csv-parse/sync';
 
 
 
 // CSV row interface
 interface CSVRow {
-  id:               string;
-  jira_id:          string;
-  test_case:        string;
-  defect_jira_id:   string;
+  id: string;
+  jira_id: string;
+  test_case: string;
+  defect_jira_id: string;
 }
 
 // ── GET ALL TEST CASES FOR A TICKET ───────────────────
@@ -36,7 +36,7 @@ export const getTestCases = async (req: Request, res: Response): Promise<void> =
 
     res.json({
       ticketKey,
-      count:     result.rows.length,
+      count: result.rows.length,
       testCases: result.rows
     });
 
@@ -70,7 +70,7 @@ export const approveAllTestCases = async (req: Request, res: Response): Promise<
     }
 
     res.json({
-      message:  `Approved ${result.rows.length} test cases`,
+      message: `Approved ${result.rows.length} test cases`,
       approved: result.rows.length
     });
 
@@ -102,7 +102,7 @@ export const approveTestCase = async (req: Request, res: Response): Promise<void
     }
 
     res.json({
-      message:  'Test case approved',
+      message: 'Test case approved',
       testCase: result.rows[0]
     });
 
@@ -134,7 +134,7 @@ export const rejectTestCase = async (req: Request, res: Response): Promise<void>
     }
 
     res.json({
-      message:  'Test case rejected',
+      message: 'Test case rejected',
       testCase: result.rows[0]
     });
 
@@ -146,7 +146,7 @@ export const rejectTestCase = async (req: Request, res: Response): Promise<void>
 
 // ── UPDATE TEST CASE ───────────────────────────────────
 export const updateTestCase = async (req: Request, res: Response): Promise<void> => {
-  const id                            = req.params.id as string;
+  const id = req.params.id as string;
   const { test_case, defect_jira_id } = req.body;
 
   if (!test_case && !defect_jira_id) {
@@ -159,7 +159,7 @@ export const updateTestCase = async (req: Request, res: Response): Promise<void>
       `UPDATE test_cases
        SET
          test_case      = COALESCE($1, test_case),
-         defect_jira_id = COALESCE($2, defect_jira_id),
+         defect_jira_id = COALESCE($2, defect_jira_id)
          -- If already pushed to Jira, mark as modified
          status         = CASE
                             WHEN jira_subtask_key IS NOT NULL AND $1 IS NOT NULL
@@ -178,7 +178,7 @@ export const updateTestCase = async (req: Request, res: Response): Promise<void>
     }
 
     res.json({
-      message:  'Test case updated',
+      message: 'Test case updated',
       testCase: result.rows[0]
     });
 
@@ -255,57 +255,169 @@ export const deleteTestCase = async (req: Request, res: Response): Promise<void>
 // Upload test cases to jira
 export const uploadTestCases = async (req: Request, res: Response): Promise<void> => {
   const ticketKey = req.params.ticketKey as string;
-
+  var responseMessage = "";
   if (!req.body.csv) {
     res.status(400).json({ error: 'No CSV data provided' });
     return;
   }
 
   try {
-    // Parse CSV with type
     const records = parse(req.body.csv, {
-      columns:          true,
+      columns: true,
       skip_empty_lines: true,
-      trim:             true
-    }) as CSVRow[];                    
+      trim: true,
+      relax_quotes: true,
+      relax_column_count: true
+    }) as CSVRow[];
 
-    const updated: any[] = [];
-    const failed:  any[] = [];
+    const ALLOWED_COLUMNS = ['id', 'jira_id', 'test_case', 'defect_jira_id'];
+    const REQUIRED_COLUMNS = ['id', 'jira_id'];
 
-    for (const row of records) {      
-      try {
-        if (!row.id) {
-          failed.push({ row, error: 'Missing id' });
-          continue;
-        }
-
-        await pool.query(
-          `UPDATE test_cases
-           SET
-             defect_jira_id   = COALESCE(NULLIF($1, ''), defect_jira_id),
-             
-           WHERE id      = $3
-           AND   jira_id = $4
-           AND   user_id = $5`,
-          [
-            row.defect_jira_id   || null,
-            row.id,
-            ticketKey,
-            req.userId
-          ]
-        );
-
-        updated.push({ id: row.id });
-
-      } catch (err: any) {
-        failed.push({ row, error: err.message });
-      }
+    if (records.length === 0) {
+      res.status(400).json({ error: 'CSV file is empty' });
+      return;
     }
 
+    const actualColumns = Object.keys(records[0]);
+    const unknownColumns = actualColumns.filter(col => !ALLOWED_COLUMNS.includes(col));
+    const missingColumns = REQUIRED_COLUMNS.filter(col => !actualColumns.includes(col));
+
+    if (unknownColumns.length > 0) {
+       console.log("Unkown columns");
+      res.status(400).json({
+        error: `Invalid columns: ${unknownColumns.join(', ')}`,
+        message: `Allowed columns: ${ALLOWED_COLUMNS.join(', ')}`
+      });
+      return;
+    }
+
+    if (missingColumns.length > 0) {
+      console.log("Missing columns");
+      res.status(400).json({
+        error: `Missing required columns: ${missingColumns.join(', ')}`,
+        message: `Required columns: ${REQUIRED_COLUMNS.join(', ')}`
+      });
+      return;
+    }
+
+
+    const updated: any[] = [];
+    const failed: any[] = [];
+
+for (const row of records) {
+  try {
+    if (!row.jira_id) {
+      failed.push({ row, error: 'Missing jira_id' });
+      continue;
+    }
+
+    // ── INSERT if no id or id is empty ────────────
+    if (!row.id || row.id.trim() === '') {
+      const inserted = await pool.query(
+        `INSERT INTO test_cases
+          (jira_id, user_id, test_case, defect_jira_id, status)
+         VALUES ($1, $2, $3, $4, 'draft')
+         RETURNING id`,
+        [
+          ticketKey,
+          req.userId,
+          row.test_case?.trim()      || '',
+          row.defect_jira_id?.trim() || null
+        ]
+      );
+      updated.push({ action: 'inserted', id: inserted.rows[0].id });
+      continue;
+    }
+
+    // ── Check if ID exists in DB ───────────────────
+    const existing = await pool.query(
+      `SELECT id, test_case, defect_jira_id
+       FROM test_cases
+       WHERE id      = $1::integer
+       AND   jira_id = $2
+       AND   user_id = $3`,
+      [parseInt(row.id), ticketKey, req.userId]
+    );
+
+    // ── ID not found — insert as new ───────────────
+    if (existing.rows.length === 0) {
+      const inserted = await pool.query(
+        `INSERT INTO test_cases
+          (jira_id, user_id, test_case, defect_jira_id, status)
+         VALUES ($1, $2, $3, $4, 'draft')
+         RETURNING id`,
+        [
+          ticketKey,
+          req.userId,
+          row.test_case?.trim()      || '',
+          row.defect_jira_id?.trim() || null
+        ]
+      );
+      updated.push({ action: 'inserted', id: inserted.rows[0].id });
+      continue;
+    }
+
+    // ── Compare with current DB values ─────────────
+    const currentRow      = existing.rows[0];
+    const newTestCase     = row.test_case?.trim()      || '';
+    const newDefectJiraId = row.defect_jira_id?.trim() || null;
+
+    const testCaseChanged   = newTestCase     !== '' && newTestCase     !== currentRow.test_case;
+    const defectJiraChanged = newDefectJiraId !== null && newDefectJiraId !== currentRow.defect_jira_id;
+
+    // ── Skip if nothing changed ────────────────────
+    if (!testCaseChanged && !defectJiraChanged) {
+      continue;
+    }
+
+    // ── Update only changed fields ─────────────────
+    const result = await pool.query(
+      `UPDATE test_cases
+       SET
+         test_case      = CASE WHEN $1 THEN $2::text ELSE test_case END,
+         defect_jira_id = CASE WHEN $3 THEN $4::text ELSE defect_jira_id END,
+         status         = CASE WHEN $1 THEN 'modified' ELSE status END
+       WHERE id      = $5::integer
+       AND   jira_id = $6
+       AND   user_id = $7`,
+      [
+        testCaseChanged,
+        newTestCase     || null,
+        defectJiraChanged,
+        newDefectJiraId || null,
+        parseInt(row.id),
+        ticketKey,
+        req.userId
+      ]
+    );
+
+    if (result.rowCount && result.rowCount > 0) {
+      updated.push({ action: 'updated', id: row.id });
+    }
+
+  } catch (rowErr: any) {
+    console.error('Row error:', rowErr.message);
+    failed.push({ row, error: rowErr.message });
+  }
+}
+
+// ── Response ───────────────────────────────────────
+const inserted = updated.filter((r: any) => r.action === 'inserted').length;
+const updatedCount = updated.filter((r: any) => r.action === 'updated').length;
+
+res.json({
+  message: `Inserted ${inserted} and updated ${updatedCount} test cases`,
+  inserted,
+  updated:  updatedCount,
+  failed:   failed.length,
+  errors:   failed
+});
+
     res.json({
-      message: `Updated ${updated.length} test cases`,
-      updated,
-      failed
+      updated: updated.length,
+      failed: failed.length,
+      errors: failed,
+      message: responseMessage
     });
 
   } catch (err) {
