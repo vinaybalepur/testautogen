@@ -52,10 +52,13 @@ export interface DBTicket {
 
 // AI Provider request
 export interface AIRequest {
-  summary:     string;
-  description: string | null;
-  provider:    string;    // 'copilot', 'gemini', 'claude'
-  model:       string;    // 'gpt-4o', 'gemini-2.5-flash' etc
+  ticketKey?:    string;
+  summary:      string;
+  description:  string | null;
+  provider:     string;
+  model:        string;
+  modelFamily?: string;
+  userId?:      number; 
 }
 
 // AI Provider response

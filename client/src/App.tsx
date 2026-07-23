@@ -5,6 +5,7 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
+import TicketDetail from './pages/TicketDetail';
 import './styles/globals.css';
 
 // Redirect to /login if not authenticated
@@ -34,6 +35,7 @@ const AppRoutes: React.FC = () => (
     <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
     <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
     <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+    <Route path="/tickets/:ticketKey" element={<PrivateRoute><TicketDetail /></PrivateRoute>} />
     <Route path="*"         element={<Navigate to="/" replace />} />
   </Routes>
 );

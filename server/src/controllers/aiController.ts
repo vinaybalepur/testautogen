@@ -1,49 +1,61 @@
-import { Request, Response }      from 'express';
-import pool                        from '../config/db';
-import { fetchJiraTicket }         from '../services/jiraService';
-import { generateBDDTestCases }    from '../services/aiService';
-import { AIRequest }               from '../types';
+import { Request, Response } from 'express';
+import pool from '../config/db';
+import { fetchJiraTicket } from '../services/jiraService';
+import { generateBDDTestCases } from '../services/aiService';
+import { AIRequest } from '../types';
 
 export const generateTestCases = async (req: Request, res: Response): Promise<void> => {
   const { ticketKey, provider, model, modelFamily } = req.body;
 
-  // Validate required fields
   if (!ticketKey || !provider || !model) {
     res.status(400).json({ error: 'ticketKey, provider and model are required' });
     return;
   }
 
   try {
-    // Step 1 — Fetch live ticket from Jira
+    // Fetch Jira ticket
     const ticket = await fetchJiraTicket(ticketKey);
 
-    // Step 2 — Build AI request
-    const aiRequest: AIRequest = {
-      summary:     ticket.summary,
-      description: ticket.description,
-      provider,
-      model
-    };
-
-    // Step 3 — Generate BDD test cases
-    const aiResponse = await generateBDDTestCases(aiRequest);
-
-    // Step 4 — Store each test case as individual row in DB
-    const savedTestCases = await Promise.all(
-      aiResponse.testCases.map((testCase: string) =>
-        pool.query(
-          `INSERT INTO test_cases 
-            (jira_id, user_id, test_case, status)
-           VALUES ($1, $2, $3, 'draft')
-           RETURNING *`,
-          [ticketKey, req.userId, testCase]
-        )
-      )
+    // ── Delete existing test cases first ──────────────
+    await pool.query(
+      `DELETE FROM test_cases
+       WHERE jira_id = $1
+       AND   user_id = $2`,
+      [ticketKey, req.userId]
     );
 
-    // Step 5 — Log token consumption
+    // Reset sequence if no test cases remain
+    const remaining = await pool.query(`SELECT COUNT(*) FROM test_cases`);
+    if (parseInt(remaining.rows[0].count) === 0) {
+      await pool.query(`ALTER SEQUENCE test_cases_id_seq RESTART WITH 1`);
+    }
+
+    // Generate new test cases via AI
+    const result = await generateBDDTestCases({
+      ticketKey,
+      summary: ticket.summary,
+      description: ticket.description,
+      provider,
+      model,
+      modelFamily: modelFamily || model,
+      userId: req.userId              // ← add here
+    });
+
+    // Store new test cases in DB
+    const inserted = [];
+    for (const tc of result.testCases) {
+      const row = await pool.query(
+        `INSERT INTO test_cases (jira_id, user_id, test_case, status)
+         VALUES ($1, $2, $3, 'draft')
+         RETURNING *`,
+        [ticketKey, req.userId, tc]
+      );
+      inserted.push(row.rows[0]);
+    }
+
+    // Log token usage
     await pool.query(
-      `INSERT INTO token_usage 
+      `INSERT INTO token_usage
         (user_id, provider, model_family, model_version, action, tokens_consumed)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
@@ -52,36 +64,17 @@ export const generateTestCases = async (req: Request, res: Response): Promise<vo
         modelFamily || model,
         model,
         'generate_bdd',
-        aiResponse.tokensConsumed
+        result.tokensConsumed
       ]
     );
 
-    // Step 6 — Return saved test cases
     res.status(201).json({
-      message:   'Test cases generated successfully',
-      ticketKey,
-      provider,
-      model,
-      count:     savedTestCases.length,
-      testCases: savedTestCases.map(r => r.rows[0])
+      message: `Generated ${inserted.length} test cases`,
+      count: inserted.length,
+      testCases: inserted
     });
 
   } catch (err: any) {
-    if (err.response?.status === 404) {
-      res.status(404).json({ error: `Ticket ${ticketKey} not found in Jira` });
-      return;
-    }
-
-    if (err.response?.status === 401) {
-      res.status(401).json({ error: 'Authentication failed. Check your credentials' });
-      return;
-    }
-
-    if (err.response?.status === 429) {
-      res.status(429).json({ error: 'AI provider rate limit exceeded. Try again later' });
-      return;
-    }
-
     console.error('Generate test cases error:', err.message);
     res.status(500).json({ error: 'Failed to generate test cases' });
   }
