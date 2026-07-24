@@ -19,8 +19,7 @@ export const generateTestCases = async (req: Request, res: Response): Promise<vo
     // ── Delete existing test cases first ──────────────
     await pool.query(
       `DELETE FROM test_cases
-       WHERE jira_id = $1
-       AND   user_id = $2`,
+       WHERE jira_id = $1`,
       [ticketKey, req.userId]
     );
 

@@ -30,9 +30,9 @@ export const getTestCases = async (req: Request, res: Response): Promise<void> =
         created_at,
         updated_at
        FROM test_cases
-       WHERE jira_id = $1 AND user_id = $2
+       WHERE jira_id = $1
        ORDER BY created_at ASC`,
-      [ticketKey, req.userId]
+      [ticketKey]
     );
 
     res.json({
@@ -53,17 +53,15 @@ export const approveAllTestCases = async (req: Request, res: Response): Promise<
 
   try {
     const result = await pool.query(
-      `UPDATE test_cases
-       SET
-         status      = 'approved',
-         reviewed_by = $1,
-         reviewed_at = NOW()
-       WHERE jira_id = $2
-       AND   user_id = $3
-       AND   status  = 'draft'
-       RETURNING id`,
-      [req.userId, ticketKey, req.userId]
-    );
+  `UPDATE test_cases
+   SET
+     status      = 'approved',
+     reviewed_at = NOW()
+   WHERE jira_id = $1
+   AND   status  = 'draft'
+   RETURNING id`,
+  [ticketKey]
+);
 
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'No draft test cases found for this ticket' });
@@ -86,16 +84,19 @@ export const approveTestCase = async (req: Request, res: Response): Promise<void
   const id = req.params.id as string;
 
   try {
-    const result = await pool.query(
-      `UPDATE test_cases
-       SET 
-         status      = 'approved',
-         reviewed_by = $1,
-         reviewed_at = NOW()
-       WHERE id = $2 AND user_id = $3
-       RETURNING *`,
-      [req.userId, id, req.userId]
-    );
+const result = await pool.query(
+  `UPDATE test_cases
+   SET
+     status = CASE
+                WHEN jira_subtask_key IS NOT NULL
+                THEN 'approved_modified'
+                ELSE 'approved'
+              END,
+     reviewed_at = NOW()
+   WHERE id = $1
+   RETURNING *`,
+  [id]
+);
 
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Test case not found' });
@@ -118,15 +119,14 @@ export const rejectTestCase = async (req: Request, res: Response): Promise<void>
   const id = req.params.id as string;
 
   try {
-    const result = await pool.query(
-      `UPDATE test_cases
-       SET
-         status      = 'rejected',
-         reviewed_by = $1,
-         reviewed_at = NOW()
-       WHERE id = $2 AND user_id = $3
-       RETURNING *`,
-      [req.userId, id, req.userId]
+   const result = await pool.query(
+  `UPDATE test_cases
+   SET
+     status      = 'rejected',
+     reviewed_at = NOW()
+   WHERE id = $1
+   RETURNING *`,
+  [id]
     );
 
     if (result.rows.length === 0) {
@@ -167,9 +167,8 @@ export const updateTestCase = async (req: Request, res: Response): Promise<void>
                             ELSE status
                           END
        WHERE id      = $3
-       AND   user_id = $4
        RETURNING *`,
-      [test_case || null, defect_jira_id || null, id, req.userId]
+      [test_case || null, defect_jira_id || null, id]
     );
 
     if (result.rows.length === 0) {
@@ -200,9 +199,9 @@ export const downloadTestCases = async (req: Request, res: Response): Promise<vo
         test_case,
         defect_jira_id
        FROM test_cases
-       WHERE jira_id = $1 AND user_id = $2
+       WHERE jira_id = $1
        ORDER BY id ASC`,
-      [ticketKey, req.userId]
+      [ticketKey]
     );
 
     if (result.rows.length === 0) {
@@ -234,9 +233,9 @@ export const deleteTestCase = async (req: Request, res: Response): Promise<void>
   try {
     const result = await pool.query(
       `DELETE FROM test_cases
-       WHERE id = $1 AND user_id = $2
+       WHERE id = $1
        RETURNING id`,
-      [id, req.userId]
+      [id]
     );
 
     if (result.rows.length === 0) {
@@ -334,9 +333,8 @@ for (const row of records) {
       `SELECT id, test_case, defect_jira_id
        FROM test_cases
        WHERE id      = $1::integer
-       AND   jira_id = $2
-       AND   user_id = $3`,
-      [parseInt(row.id), ticketKey, req.userId]
+       AND   jira_id = $2`,
+      [parseInt(row.id), ticketKey]
     );
 
     // ── ID not found — insert as new ───────────────
@@ -378,16 +376,14 @@ for (const row of records) {
          defect_jira_id = CASE WHEN $3 THEN $4::text ELSE defect_jira_id END,
          status         = CASE WHEN $1 THEN 'modified' ELSE status END
        WHERE id      = $5::integer
-       AND   jira_id = $6
-       AND   user_id = $7`,
+       AND   jira_id = $6`,
       [
         testCaseChanged,
         newTestCase     || null,
         defectJiraChanged,
         newDefectJiraId || null,
         parseInt(row.id),
-        ticketKey,
-        req.userId
+        ticketKey
       ]
     );
 

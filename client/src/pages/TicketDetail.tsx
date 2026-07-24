@@ -89,6 +89,18 @@ const TicketDetail: React.FC = () => {
   const [pushing, setPushing] = useState(false);
   const [pushMsg, setPushMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Postman tab
+  const [registryAPIs, setRegistryAPIs] = useState<any[]>([]);
+  const [selectedAPIs, setSelectedAPIs] = useState<any[]>([]);
+  const [baseUrl, setBaseUrl] = useState('');
+  const [postmanVars, setPostmanVars] = useState<Record<string, string>>({});
+  const [discovery, setDiscovery] = useState<any | null>(null);
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [runningDiscovery, setRunningDiscovery] = useState(false);
+  const [generatingCollection, setGeneratingCollection] = useState(false);
+  const [postmanMsg, setPostmanMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+
   useEffect(() => {
     if (!ticketKey) return;
     fetchTicket();
@@ -98,11 +110,19 @@ const TicketDetail: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'testcases') fetchTestCases();
+    if (activeTab === 'postman') fetchRegistryAPIs();   // ← add this
   }, [activeTab]);
 
   useEffect(() => {
     if (selectedProvider) fetchModels(selectedProvider);
   }, [selectedProvider]);
+
+  // ← Add this new one
+  useEffect(() => {
+    if (registryAPIs.length > 0 && activeTab === 'postman') {
+      fetchDiscovery();
+    }
+  }, [registryAPIs]);
 
   const fetchTicket = async () => {
     setTicketLoading(true);
@@ -317,6 +337,147 @@ const TicketDetail: React.FC = () => {
       });
     } finally {
       setPushing(false);
+    }
+  };
+
+  //Postman tab section
+
+  const fetchRegistryAPIs = async () => {
+    try {
+      const { data } = await api.get('/registry');
+      setRegistryAPIs(data.apis);
+    } catch (err) {
+      console.error('Failed to fetch registry APIs:', err);
+    }
+  };
+
+const fetchDiscovery = async () => {
+  setDiscoveryLoading(true);
+  try {
+    const { data } = await api.get(`/discovery/${ticketKey}/status`);
+    if (data.discovery) {
+      setDiscovery(data.discovery);
+      if (data.discovery.base_url) setBaseUrl(data.discovery.base_url);
+
+      // Start with empty vars
+      const vars: Record<string, string> = {};
+
+      // Add saved registry variables for selected APIs
+      if (data.discovery.api_ids) {
+        for (const apiId of data.discovery.api_ids) {
+          try {
+            const { data: varData } = await api.get(`/registry/${apiId}/variables`);
+            for (const v of varData.variables) {
+              vars[v.name] = v.value || '';
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // Add extracted vars from discovery (overwrite if conflict)
+      if (data.discovery.extracted_vars) {
+        for (const apiVars of data.discovery.extracted_vars) {
+          Object.assign(vars, apiVars.variables);
+        }
+      }
+
+      setPostmanVars(vars);
+
+      // Pre-select APIs
+      if (data.discovery.api_ids && registryAPIs.length > 0) {
+        const ordered = data.discovery.api_ids
+          .map((id: number) => registryAPIs.find(a => a.id === id))
+          .filter(Boolean);
+        setSelectedAPIs(ordered);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch discovery:', err);
+  } finally {
+    setDiscoveryLoading(false);
+  }
+};
+
+  const handleAddAPI = (api_entry: any) => {
+    if (selectedAPIs.find(a => a.id === api_entry.id)) return;
+    setSelectedAPIs(prev => [...prev, api_entry]);
+  };
+
+  const handleRemoveAPI = (apiId: number) => {
+    setSelectedAPIs(prev => prev.filter(a => a.id !== apiId));
+  };
+
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return;
+    const newList = [...selectedAPIs];
+    [newList[index - 1], newList[index]] = [newList[index], newList[index - 1]];
+    setSelectedAPIs(newList);
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index === selectedAPIs.length - 1) return;
+    const newList = [...selectedAPIs];
+    [newList[index], newList[index + 1]] = [newList[index + 1], newList[index]];
+    setSelectedAPIs(newList);
+  };
+
+  const handleRunDiscovery = async () => {
+    if (selectedAPIs.length === 0 || !baseUrl.trim()) {
+      setPostmanMsg({ type: 'error', text: 'Select APIs and enter base URL first' });
+      return;
+    }
+    setRunningDiscovery(true);
+    setPostmanMsg(null);
+    try {
+      await api.post(`/discovery/${ticketKey}/run`, {
+        apiIds: selectedAPIs.map(a => a.id),
+        baseUrl: baseUrl.trim(),
+        variables: postmanVars
+      });
+      setPostmanMsg({ type: 'success', text: '⏳ Discovery started...' });
+      // Poll for completion
+      const interval = setInterval(async () => {
+        const { data } = await api.get(`/discovery/${ticketKey}/status`);
+        if (data.discovery?.status === 'completed') {
+          clearInterval(interval);
+          setRunningDiscovery(false);
+          fetchDiscovery();
+          setPostmanMsg({ type: 'success', text: '✅ Discovery completed!' });
+        } else if (data.discovery?.status === 'failed') {
+          clearInterval(interval);
+          setRunningDiscovery(false);
+          setPostmanMsg({ type: 'error', text: `❌ Discovery failed: ${data.discovery.error}` });
+        }
+      }, 2000);
+    } catch (err: any) {
+      setRunningDiscovery(false);
+      setPostmanMsg({ type: 'error', text: err.response?.data?.error || 'Failed to run discovery' });
+    }
+  };
+
+  const handleGenerateCollection = async () => {
+    if (!discovery || discovery.status !== 'completed') {
+      setPostmanMsg({ type: 'error', text: 'Run discovery first' });
+      return;
+    }
+    setGeneratingCollection(true);
+    try {
+      const { data } = await api.post('/postman/generate', {
+        ticketKey,
+        provider: selectedProvider,
+        model: selectedModel,
+        modelFamily: selectedProvider,
+        baseUrl: baseUrl.trim(),
+        variables: postmanVars,
+        apiIds: selectedAPIs.map(a => a.id)
+      });
+      setPostmanMsg({ type: 'success', text: '✅ Collection generated!' });
+    } catch (err: any) {
+      setPostmanMsg({ type: 'error', text: err.response?.data?.error || 'Failed to generate collection' });
+    } finally {
+      setGeneratingCollection(false);
     }
   };
 
@@ -743,9 +904,9 @@ const TicketDetail: React.FC = () => {
                       {/* Action buttons */}
                       <div style={{ display: 'flex', gap: 6 }}>
                         {tc.status !== 'approved' && tc.status !== 'approved_modified' && (
-  <button onClick={() => handleApprove(tc.id)} className="btn btn-success btn-sm" title="Approve">
-    ✅
-  </button>
+                          <button onClick={() => handleApprove(tc.id)} className="btn btn-success btn-sm" title="Approve">
+                            ✅
+                          </button>
                         )}
                         {tc.status !== 'rejected' && (
                           <button onClick={() => handleReject(tc.id)} className="btn btn-danger btn-sm" title="Reject test case">
@@ -820,10 +981,278 @@ const TicketDetail: React.FC = () => {
 
         {/* ── POSTMAN TAB ── */}
         {activeTab === 'postman' && (
-          <div className="empty-state">
-            <div className="empty-state-icon">📮</div>
-            <h3>Postman Collections</h3>
-            <p>Coming soon</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {postmanMsg && (
+              <div className={`status-msg ${postmanMsg.type}`}>
+                {postmanMsg.text}
+              </div>
+            )}
+
+            {/* Section 1 — API Chain */}
+            <div className="card">
+              <div className="card-header">
+                <div className="card-icon blue">🔗</div>
+                <div>
+                  <div className="card-title">API Chain</div>
+                  <div className="card-subtitle">Select and order APIs for this collection</div>
+                </div>
+              </div>
+
+              {/* Base URL */}
+              <div className="form-group">
+                <label className="form-label">Base URL *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="https://api.example.com"
+                  value={baseUrl}
+                  onChange={e => setBaseUrl(e.target.value)}
+                />
+              </div>
+
+              {/* API Selector */}
+              {user?.role === 'admin' && (
+                <div className="form-group">
+                  <label className="form-label">Add API</label>
+                  <select
+                    className="form-select"
+                    onChange={e => {
+                      const api_entry = registryAPIs.find(a => a.id === parseInt(e.target.value));
+                      if (api_entry) handleAddAPI(api_entry);
+                      e.target.value = '';
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select API to add...</option>
+                    {registryAPIs
+                      .filter(a => !selectedAPIs.find(s => s.id === a.id))
+                      .map(a => (
+                        <option key={a.id} value={a.id}>
+                          {a.method} {a.path} — {a.name}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+              )}
+
+              {/* Selected APIs List */}
+              {selectedAPIs.length === 0 ? (
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85em', padding: '12px 0' }}>
+                  No APIs selected yet. Add APIs from the registry above.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {selectedAPIs.map((a, index) => (
+                    <div key={a.id} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      background: 'var(--bg-primary)',
+                      borderRadius: 8,
+                      padding: '10px 14px'
+                    }}>
+                      <span style={{
+                        fontSize: '0.75em',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        minWidth: 20
+                      }}>
+                        {index + 1}
+                      </span>
+                      <span style={{
+                        fontSize: '0.72em',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: a.method === 'GET' ? 'rgba(16,185,129,0.1)' : 'rgba(99,102,241,0.1)',
+                        color: a.method === 'GET' ? '#10b981' : '#6366f1'
+                      }}>
+                        {a.method}
+                      </span>
+                      <span style={{ fontSize: '0.85em', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                        {a.path}
+                      </span>
+                      <span style={{ fontWeight: 600, fontSize: '0.85em', color: 'var(--text-primary)' }}>
+                        {a.name}
+                      </span>
+                      {user?.role === 'admin' && (
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                          <button
+                            onClick={() => handleMoveUp(index)}
+                            disabled={index === 0}
+                            className="btn btn-secondary btn-sm"
+                            title="Move up"
+                            style={{ padding: '2px 8px' }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => handleMoveDown(index)}
+                            disabled={index === selectedAPIs.length - 1}
+                            className="btn btn-secondary btn-sm"
+                            title="Move down"
+                            style={{ padding: '2px 8px' }}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            onClick={() => handleRemoveAPI(a.id)}
+                            className="btn btn-danger btn-sm"
+                            title="Remove"
+                            style={{ padding: '2px 8px' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Run Discovery Button — Admin only */}
+              {user?.role === 'admin' && (
+                <button
+                  onClick={handleRunDiscovery}
+                  className="btn btn-primary"
+                  disabled={runningDiscovery || selectedAPIs.length === 0 || !baseUrl.trim()}
+                  style={{ marginTop: 16 }}
+                >
+                  {runningDiscovery ? <><span className="spinner" /> Running Discovery...</> : '🔍 Run Discovery'}
+                </button>
+              )}
+            </div>
+
+            {/* Section 2 — Discovery Status */}
+            {discoveryLoading ? (
+              <div className="spinner-container">
+                <span className="spinner" />
+                <span>Loading discovery status...</span>
+              </div>
+            ) : discovery ? (
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-icon green">🔍</div>
+                  <div>
+                    <div className="card-title">Discovery Results</div>
+                    <div className="card-subtitle">
+                      {discovery.status === 'completed'
+                        ? `Completed on ${new Date(discovery.completed_at).toLocaleDateString()} by ${discovery.run_by_name}`
+                        : `Status: ${discovery.status}`
+                      }
+                    </div>
+                  </div>
+                  <span className={`badge ${discovery.status === 'completed' ? 'badge-approved' : 'badge-draft'}`}
+                    style={{ marginLeft: 'auto' }}>
+                    {discovery.status === 'completed' ? '✅ Completed' : discovery.status}
+                  </span>
+                </div>
+
+                {/* API Run Results */}
+                {discovery.api_chain && discovery.api_chain.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {discovery.api_chain.map((chain: any, index: number) => (
+                      <div key={chain.apiId} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        background: 'var(--bg-primary)',
+                        borderRadius: 8,
+                        padding: '10px 14px'
+                      }}>
+                        <span style={{ fontSize: '0.75em', color: 'var(--text-secondary)', minWidth: 20 }}>
+                          {index + 1}
+                        </span>
+                        <span style={{ fontSize: '0.85em' }}>
+                          {chain.error ? '❌' : '✅'}
+                        </span>
+                        <span style={{ fontWeight: 600, fontSize: '0.85em', color: 'var(--text-primary)' }}>
+                          {chain.name}
+                        </span>
+                        <span style={{ fontSize: '0.82em', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                          {chain.method} {chain.path}
+                        </span>
+                        {chain.extracts && chain.extracts.length > 0 && !chain.error && (
+                          <span style={{ fontSize: '0.75em', color: '#10b981', marginLeft: 'auto' }}>
+                            extracts: {chain.extracts.join(', ')}
+                          </span>
+                        )}
+                        {chain.error && (
+                          <span style={{ fontSize: '0.75em', color: '#ef4444', marginLeft: 'auto' }}>
+                            {chain.error}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {/* Section 3 — Variables */}
+            {discovery?.status === 'completed' && (
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-icon purple">⚙️</div>
+                  <div>
+                    <div className="card-title">Variables</div>
+                    <div className="card-subtitle">Pre-filled from discovery — update if needed</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Base URL always shown */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.85em', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                      base_url
+                    </span>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={baseUrl}
+                      onChange={e => setBaseUrl(e.target.value)}
+                      style={{ fontSize: '0.82em', padding: '6px 10px' }}
+                    />
+                  </div>
+
+                  {/* Extracted variables */}
+                  {Object.entries(postmanVars)
+  .filter(([key]) => !['token', 'auth_token'].includes(key))  // hide auto tokens
+  .map(([key, value]) => (
+    <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, alignItems: 'center' }}>
+      <span style={{ fontSize: '0.85em', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+        {key}
+      </span>
+      <input
+        type={key.toLowerCase().includes('password') ? 'password' : 'text'}
+        className="form-input"
+        value={value}
+        onChange={e => setPostmanVars(prev => ({ ...prev, [key]: e.target.value }))}
+        style={{ fontSize: '0.82em', padding: '6px 10px' }}
+      />
+    </div>
+  ))
+}
+                </div>
+              </div>
+            )}
+
+            {/* Section 4 — Generate */}
+            {discovery?.status === 'completed' && (
+              <button
+                onClick={handleGenerateCollection}
+                className="btn btn-primary btn-full btn-lg"
+                disabled={generatingCollection}
+              >
+                {generatingCollection
+                  ? <><span className="spinner" /> Generating...</>
+                  : '📮 Generate Postman Collection'
+                }
+              </button>
+            )}
+
           </div>
         )}
 
