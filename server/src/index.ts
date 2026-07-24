@@ -49,6 +49,8 @@ app.use('/api/discovery', discoveryRoutes);
 app.use('/api/registry', apiRegistryRoutes); 
 
 
+
+
 // Health check route
 app.get('/health', (req, res) => {
   res.json({ status: 'Server is up and running 🚀' });

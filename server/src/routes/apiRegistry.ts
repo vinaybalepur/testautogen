@@ -1,4 +1,4 @@
-import { Router }       from 'express';
+import { Router }                                                          from 'express';
 import {
   getAPIs,
   createAPI,
@@ -7,9 +7,9 @@ import {
   importFromPostman,
   saveVariable,
   getVariables
-}                         from '../controllers/apiRegistryController';
-import authenticate       from '../middleware/authenticate';
-import isAdmin            from '../middleware/isAdmin';
+}                                                                          from '../controllers/apiRegistryController';
+import authenticate                                                        from '../middleware/authenticate';
+import isAdmin                                                             from '../middleware/isAdmin';
 
 const router = Router();
 

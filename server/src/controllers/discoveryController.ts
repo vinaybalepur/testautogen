@@ -60,28 +60,41 @@ const runDiscoveryAsync = async (
   variables: Record<string, string>,
   userId:    number
 ): Promise<void> => {
+    console.log('🚀 runDiscoveryAsync started', { ticketKey, apiIds, baseUrl, userId }); 
   try {
     // Fetch APIs in order
+    // const apiResults = await Promise.all(
+    //   apiIds.map(id =>
+    //     pool.query(
+    //       `SELECT ar.*,
+    //         COALESCE(
+    //           json_object_agg(arv.name, arv.value)
+    //           FILTER (WHERE arv.name IS NOT NULL),
+    //           '{}'::json
+    //         ) as saved_vars
+    //        FROM api_registry ar
+    //        LEFT JOIN api_registry_variables arv
+    //          ON arv.api_id = ar.id AND arv.user_id = $2
+    //        WHERE ar.id = $1
+    //        GROUP BY ar.id`,
+    //       [id, userId]
+    //     )
+    //   )
+    // );
+
     const apiResults = await Promise.all(
-      apiIds.map(id =>
-        pool.query(
-          `SELECT ar.*,
-            COALESCE(
-              json_object_agg(arv.name, arv.value)
-              FILTER (WHERE arv.name IS NOT NULL),
-              '{}'::json
-            ) as saved_vars
-           FROM api_registry ar
-           LEFT JOIN api_registry_variables arv
-             ON arv.api_id = ar.id AND arv.user_id = $2
-           WHERE ar.id = $1
-           GROUP BY ar.id`,
-          [id, userId]
-        )
-      )
-    );
+  apiIds.map((id: number) =>
+    pool.query(
+      `SELECT * FROM api_registry WHERE id = $1`,
+      [id]
+    )
+  )
+);
 
     const apiList = apiResults.map(r => r.rows[0]).filter(Boolean);
+    console.log('API IDs received:', apiIds);
+    console.log('API list fetched:', apiList.length, apiList.map((a: any) => a?.name));
+
 
     // Build collection variables
     const collectionVars: Record<string, string> = {
@@ -90,11 +103,23 @@ const runDiscoveryAsync = async (
     };
 
     // Add saved variables from DB
+    // for (const api of apiList) {
+    //   if (api.saved_vars) {
+    //     Object.assign(collectionVars, api.saved_vars);
+    //   }
+    // }
+
     for (const api of apiList) {
-      if (api.saved_vars) {
-        Object.assign(collectionVars, api.saved_vars);
-      }
-    }
+  const varsResult = await pool.query(
+    `SELECT name, value FROM api_registry_variables
+     WHERE api_id = $1 AND user_id = $2`,
+    [api.id, userId]
+  );
+  api.saved_vars = {};
+  varsResult.rows.forEach((v: any) => {
+    api.saved_vars[v.name] = v.value;
+  });
+}
 
     const responseSchemas: any[] = [];
     const extractedVars:   any[] = [];
@@ -138,12 +163,12 @@ const runDiscoveryAsync = async (
 
         // Call the API
         const response = await axios({
-          method:  api.method.toLowerCase(),
-          url:     `${baseUrl}${path}`,
-          headers,
-          data:    body,
-          timeout: 10000
-        });
+  method:  api.method.toLowerCase(),
+  url:     `${baseUrl}${path}`,
+  headers,
+  data:    api.method === 'GET' ? undefined : body,  // ← don't send body for GET
+  timeout: 10000
+});
 
         const responseData = response.data;
         const statusCode   = response.status;
@@ -245,17 +270,24 @@ const extractVariables = (
   const namePrefix = apiName.toLowerCase().replace(/\s+/g, '_');
 
   const extract = (obj: any, path: string = '') => {
+    // ── Handle arrays — only extract first item ──────
+    if (Array.isArray(obj)) {
+      if (obj.length > 0) extract(obj[0], path);
+      return;
+    }
     if (!obj || typeof obj !== 'object') return;
+
     for (const [key, value] of Object.entries(obj)) {
       const fullPath = path ? `${path}_${key}` : key;
       if (typeof value === 'string' || typeof value === 'number') {
-        // Namespaced variable
         vars[`${namePrefix}_${fullPath}`] = String(value);
         // Common names without prefix
         if (['token', 'access_token', 'id', 'session_id', 'basket_id', 'order_id'].includes(key.toLowerCase())) {
           vars[key.toLowerCase()] = String(value);
         }
-      } else if (typeof value === 'object' && !Array.isArray(value)) {
+      } else if (Array.isArray(value)) {
+        if (value.length > 0) extract(value[0], fullPath);
+      } else if (typeof value === 'object' && value !== null) {
         extract(value, fullPath);
       }
     }
@@ -267,6 +299,10 @@ const extractVariables = (
 
 // ── BUILD SCHEMA FROM RESPONSE ─────────────────────────
 const buildSchema = (data: any): any => {
+  if (Array.isArray(data)) {
+    // For arrays — only capture schema of first item
+    return data.length > 0 ? [buildSchema(data[0])] : [];
+  }
   if (!data || typeof data !== 'object') return typeof data;
   const schema: any = {};
   for (const [key, value] of Object.entries(data)) {

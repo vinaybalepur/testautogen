@@ -51,19 +51,19 @@ export const createAPI = async (req: Request, res: Response): Promise<void> => {
 
 // ── UPDATE API ─────────────────────────────────────────
 export const updateAPI = async (req: Request, res: Response): Promise<void> => {
-  const { id }                                            = req.params;
+  const { id }                                           = req.params;
   const { name, method, path, auth_type, headers, body } = req.body;
 
   try {
     const result = await pool.query(
       `UPDATE api_registry
        SET
-         name       = COALESCE($1, name),
-         method     = COALESCE($2, method),
-         path       = COALESCE($3, path),
-         auth_type  = COALESCE($4, auth_type),
-         headers    = COALESCE($5, headers),
-         body       = COALESCE($6, body),
+         name      = COALESCE($1, name),
+         method    = COALESCE($2, method),
+         path      = COALESCE($3, path),
+         auth_type = COALESCE($4, auth_type),
+         headers   = COALESCE($5, headers),
+         body      = COALESCE($6, body),
          updated_at = NOW()
        WHERE id      = $7
        AND   user_id = $8
@@ -119,7 +119,7 @@ export const deleteAPI = async (req: Request, res: Response): Promise<void> => {
 
 // ── IMPORT FROM POSTMAN COLLECTION ────────────────────
 export const importFromPostman = async (req: Request, res: Response): Promise<void> => {
-  const collection = req.body.collection || req.body;
+  const { collection } = req.body;
 
   if (!collection) {
     res.status(400).json({ error: 'Postman collection JSON is required' });
@@ -130,12 +130,15 @@ export const importFromPostman = async (req: Request, res: Response): Promise<vo
     const imported: any[] = [];
     const failed:   any[] = [];
 
+    // Extract requests from collection
     const extractRequests = (items: any[]): any[] => {
       const requests: any[] = [];
       for (const item of items) {
         if (item.request) {
+          // It's a request
           requests.push(item);
         } else if (item.item) {
+          // It's a folder — recurse
           requests.push(...extractRequests(item.item));
         }
       }
@@ -147,22 +150,25 @@ export const importFromPostman = async (req: Request, res: Response): Promise<vo
 
     for (const item of requests) {
       try {
-        const request = item.request;
-        const method  = request.method?.toUpperCase() || 'GET';
-        const name    = item.name || 'Unnamed API';
+        const request   = item.request;
+        const method    = request.method?.toUpperCase() || 'GET';
+        const name      = item.name || 'Unnamed API';
 
-        const rawUrl = request.url?.raw || request.url || '';
-        const path   = rawUrl
+        // Extract path
+        const rawUrl    = request.url?.raw || request.url || '';
+        const path      = rawUrl
           .replace(/{{base_url}}/gi, '')
           .replace(/^https?:\/\/[^/]+/, '')
           .split('?')[0] || '/';
 
+        // Extract headers (ignore auth headers)
         const headers = (request.header || [])
           .filter((h: any) =>
             !['authorization', 'x-api-key'].includes(h.key?.toLowerCase())
           )
           .map((h: any) => ({ key: h.key, value: h.value }));
 
+        // Extract body
         let body = null;
         if (request.body?.raw) {
           try {
@@ -172,15 +178,18 @@ export const importFromPostman = async (req: Request, res: Response): Promise<vo
           }
         }
 
-        const hasAuth   = (request.header || []).some((h: any) =>
+        // Detect auth type
+        const hasAuth = (request.header || []).some((h: any) =>
           h.key?.toLowerCase() === 'authorization'
         );
         const auth_type = hasAuth ? 'bearer' : 'none';
+        const needs_auth = hasAuth;
 
-        await pool.query(
+        const result = await pool.query(
           `INSERT INTO api_registry
             (user_id, name, method, path, auth_type, headers, body, source)
            VALUES ($1, $2, $3, $4, $5, $6, $7, 'postman')
+           ON CONFLICT DO NOTHING
            RETURNING *`,
           [
             req.userId,

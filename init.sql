@@ -208,8 +208,3 @@ CREATE INDEX IF NOT EXISTS idx_collection_discovery ON collection_discovery(tick
 ALTER TABLE collection_discovery
 ADD COLUMN IF NOT EXISTS api_ids  JSONB,
 ADD COLUMN IF NOT EXISTS base_url TEXT;
-
--- ── Add discovery cache columns to api_registry ────────
-ALTER TABLE api_registry
-ADD COLUMN IF NOT EXISTS response_schema JSONB,
-ADD COLUMN IF NOT EXISTS discovered_at   TIMESTAMP;

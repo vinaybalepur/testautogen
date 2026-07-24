@@ -3,15 +3,15 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 interface APIEntry {
-  id:        number;
-  name:      string;
-  method:    string;
-  path:      string;
-  auth_type: string;
-  headers:   any[];
-  body:      any;
-  source:    string;
-  created_at:string;
+  id:          number;
+  name:        string;
+  method:      string;
+  path:        string;
+  auth_type:   string;
+  headers:     any[];
+  body:        any;
+  source:      string;
+  created_at:  string;
 }
 
 interface BodyField {
@@ -30,21 +30,21 @@ const METHOD_COLORS: Record<string, string> = {
 };
 
 const APIRegistry: React.FC = () => {
-  const { user }                          = useAuth();
-  const isAdmin                            = user?.role === 'admin';
-  const [apis, setApis]                   = useState<APIEntry[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [expandedId, setExpandedId]       = useState<number | null>(null);
-  const [bodyFields, setBodyFields]       = useState<Record<number, BodyField[]>>({});
-  const [showAddForm, setShowAddForm]     = useState(false);
-  const [showImport, setShowImport]       = useState(false);
-  const [importing, setImporting]         = useState(false);
-  const [saving, setSaving]               = useState(false);
-  const [deleteModal, setDeleteModal]     = useState<number | null>(null);
-  const [msg, setMsg]                     = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const fileInputRef                       = useRef<HTMLInputElement>(null);
+  const { user }                              = useAuth();
+  const isAdmin                               = user?.role === 'admin';
+  const [apis, setApis]                       = useState<APIEntry[]>([]);
+  const [loading, setLoading]                 = useState(true);
+  const [expandedId, setExpandedId]           = useState<number | null>(null);
+  const [bodyFields, setBodyFields]           = useState<Record<number, BodyField[]>>({});
+  const [dirtyApis, setDirtyApis]             = useState<Set<number>>(new Set());
+  const [showFieldValues, setShowFieldValues] = useState<Record<string, boolean>>({});
+  const [showAddForm, setShowAddForm]         = useState(false);
+  const [importing, setImporting]             = useState(false);
+  const [saving, setSaving]                   = useState(false);
+  const [deleteModal, setDeleteModal]         = useState<number | null>(null);
+  const [msg, setMsg]                         = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const fileInputRef                          = useRef<HTMLInputElement>(null);
 
-  // New API form state
   const [newAPI, setNewAPI] = useState({
     name:      '',
     method:    'POST',
@@ -71,28 +71,44 @@ const APIRegistry: React.FC = () => {
 
   const parseBodyFields = (apiId: number, body: any): BodyField[] => {
     if (!body) return [];
+    const apiName = apis.find(a => a.id === apiId)?.name || '';
     return Object.entries(body).map(([key, value]) => {
-      const isVar      = typeof value === 'string' && (value as string).startsWith('{{');
-      const varName    = isVar
+      const isVar   = typeof value === 'string' && (value as string).startsWith('{{');
+      const varName = isVar
         ? (value as string).replace('{{', '').replace('}}', '').trim()
-        : `${apis.find(a => a.id === apiId)?.name.toLowerCase().replace(/\s+/g, '_')}_${key}`;
+        : `${apiName.toLowerCase().replace(/\s+/g, '_')}_${key}`;
       return {
         key,
-        value:        String(value),
+        value:        isVar ? '' : String(value),
         isVariable:   isVar,
         variableName: varName
       };
     });
   };
 
-  const handleExpand = (apiId: number, body: any) => {
+  const handleExpand = async (apiId: number, body: any) => {
     if (expandedId === apiId) {
       setExpandedId(null);
       return;
     }
     setExpandedId(apiId);
+
     if (!bodyFields[apiId]) {
-      setBodyFields(prev => ({ ...prev, [apiId]: parseBodyFields(apiId, body) }));
+      const fields = parseBodyFields(apiId, body);
+
+      try {
+        const { data } = await api.get(`/registry/${apiId}/variables`);
+        const savedVars: Record<string, string> = {};
+        data.variables.forEach((v: any) => { savedVars[v.name] = v.value; });
+
+        const filledFields = fields.map(f => ({
+          ...f,
+          value: f.isVariable ? (savedVars[f.variableName] || '') : f.value
+        }));
+        setBodyFields(prev => ({ ...prev, [apiId]: filledFields }));
+      } catch {
+        setBodyFields(prev => ({ ...prev, [apiId]: fields }));
+      }
     }
   };
 
@@ -103,6 +119,7 @@ const APIRegistry: React.FC = () => {
         f.key === fieldKey ? { ...f, isVariable: !f.isVariable } : f
       )
     }));
+    setDirtyApis(prev => new Set(prev).add(apiId));
   };
 
   const handleFieldValueChange = (apiId: number, fieldKey: string, value: string) => {
@@ -112,6 +129,7 @@ const APIRegistry: React.FC = () => {
         f.key === fieldKey ? { ...f, value } : f
       )
     }));
+    setDirtyApis(prev => new Set(prev).add(apiId));
   };
 
   const handleSaveFields = async (apiId: number) => {
@@ -123,7 +141,6 @@ const APIRegistry: React.FC = () => {
       for (const field of fields) {
         if (field.isVariable) {
           newBody[field.key] = `{{${field.variableName}}}`;
-          // Save variable value to DB
           await api.post(`/registry/${apiId}/variables`, {
             name:  field.variableName,
             value: field.value
@@ -133,8 +150,13 @@ const APIRegistry: React.FC = () => {
         }
       }
 
-      // Update API body
       await api.put(`/registry/${apiId}`, { body: newBody });
+
+      setDirtyApis(prev => {
+        const updated = new Set(prev);
+        updated.delete(apiId);
+        return updated;
+      });
 
       setMsg({ type: 'success', text: 'Saved successfully!' });
       fetchAPIs();
@@ -212,7 +234,7 @@ const APIRegistry: React.FC = () => {
     <div>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: '1.4em', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+        <h2 style={{ fontSize: '1.2em', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
           📮 API Registry
         </h2>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9em' }}>
@@ -255,7 +277,9 @@ const APIRegistry: React.FC = () => {
       {/* Add API Form */}
       {showAddForm && isAdmin && (
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-title" style={{ marginBottom: 16 }}>Add New API</div>
+          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16 }}>
+            Add New API
+          </div>
           <div className="grid-2">
             <div className="form-group">
               <label className="form-label">Name *</label>
@@ -400,38 +424,44 @@ const APIRegistry: React.FC = () => {
               {/* Expanded Body Fields */}
               {expandedId === api_entry.id && (
                 <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-
                   {!api_entry.body || Object.keys(api_entry.body).length === 0 ? (
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.85em' }}>
                       No body fields for this API
                     </p>
                   ) : (
                     <>
-                      <div style={{ fontSize: '0.78em', color: 'var(--text-secondary)', marginBottom: 12, fontWeight: 600 }}>
+                      <div style={{
+                        fontSize:   '0.78em',
+                        color:      'var(--text-secondary)',
+                        marginBottom: 12,
+                        fontWeight: 600
+                      }}>
                         BODY FIELDS
                       </div>
 
                       {/* Table Header */}
                       <div style={{
                         display:             'grid',
-                        gridTemplateColumns: '1fr 1.5fr 1fr auto',
+                        gridTemplateColumns: '1fr 1.5fr 1fr 80px',
                         gap:                 8,
                         marginBottom:        8,
                         fontSize:            '0.75em',
                         color:               'var(--text-secondary)',
-                        fontWeight:          600
+                        fontWeight:          600,
+                        borderBottom:        '1px solid var(--border)',
+                        paddingBottom:       8
                       }}>
                         <span>Field</span>
                         <span>Value</span>
                         <span>Variable Name</span>
-                        <span>Is Variable?</span>
+                        <span style={{ textAlign: 'center' }}>Is Variable?</span>
                       </div>
 
                       {/* Table Rows */}
                       {(bodyFields[api_entry.id] || []).map(field => (
                         <div key={field.key} style={{
                           display:             'grid',
-                          gridTemplateColumns: '1fr 1.5fr 1fr auto',
+                          gridTemplateColumns: '1fr 1.5fr 1fr 80px',
                           gap:                 8,
                           marginBottom:        8,
                           alignItems:          'center'
@@ -443,14 +473,53 @@ const APIRegistry: React.FC = () => {
                           }}>
                             {field.key}
                           </span>
-                          <input
-                            type={field.key.toLowerCase().includes('password') ? 'password' : 'text'}
-                            className="form-input"
-                            value={field.isVariable ? field.value : field.value}
-                            onChange={e => handleFieldValueChange(api_entry.id, field.key, e.target.value)}
-                            style={{ fontSize: '0.82em', padding: '6px 10px' }}
-                            disabled={!isAdmin}
-                          />
+
+                          {/* Value input with show/hide for password */}
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type={
+                                field.key.toLowerCase().includes('password') &&
+                                !showFieldValues[`${api_entry.id}_${field.key}`]
+                                  ? 'password'
+                                  : 'text'
+                              }
+                              className="form-input"
+                              value={field.value}
+                              onChange={e => handleFieldValueChange(api_entry.id, field.key, e.target.value)}
+                              style={{
+                                fontSize:     '0.82em',
+                                padding:      '6px 10px',
+                                paddingRight: field.key.toLowerCase().includes('password') ? 32 : 10,
+                                width:        '100%'
+                              }}
+                              disabled={!isAdmin}
+                            />
+                            {field.key.toLowerCase().includes('password') && (
+                              <button
+                                type="button"
+                                onClick={() => setShowFieldValues(prev => ({
+                                  ...prev,
+                                  [`${api_entry.id}_${field.key}`]: !prev[`${api_entry.id}_${field.key}`]
+                                }))}
+                                style={{
+                                  position:   'absolute',
+                                  right:      6,
+                                  top:        '50%',
+                                  transform:  'translateY(-50%)',
+                                  background: 'none',
+                                  border:     'none',
+                                  cursor:     'pointer',
+                                  fontSize:   '0.8em',
+                                  color:      'var(--text-secondary)',
+                                  padding:    0
+                                }}
+                              >
+                                {showFieldValues[`${api_entry.id}_${field.key}`] ? '🙈' : '👁️'}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Variable Name */}
                           <span style={{
                             fontSize:   '0.78em',
                             fontFamily: 'monospace',
@@ -458,22 +527,30 @@ const APIRegistry: React.FC = () => {
                           }}>
                             {field.isVariable ? `{{${field.variableName}}}` : '—'}
                           </span>
-                          <input
-                            type="checkbox"
-                            checked={field.isVariable}
-                            onChange={() => isAdmin && handleToggleVariable(api_entry.id, field.key)}
-                            disabled={!isAdmin}
-                            style={{ cursor: isAdmin ? 'pointer' : 'not-allowed' }}
-                          />
+
+                          {/* Checkbox */}
+                          <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={field.isVariable}
+                              onChange={() => isAdmin && handleToggleVariable(api_entry.id, field.key)}
+                              disabled={!isAdmin}
+                              style={{
+                                cursor: isAdmin ? 'pointer' : 'not-allowed',
+                                width:  16,
+                                height: 16
+                              }}
+                            />
+                          </div>
                         </div>
                       ))}
 
-                      {/* Save Button — Admin only */}
+                      {/* Save Button */}
                       {isAdmin && (
                         <button
                           onClick={() => handleSaveFields(api_entry.id)}
                           className="btn btn-primary btn-sm"
-                          disabled={saving}
+                          disabled={saving || !dirtyApis.has(api_entry.id)}
                           style={{ marginTop: 12 }}
                         >
                           {saving ? <span className="spinner" /> : '💾'} Save Changes
