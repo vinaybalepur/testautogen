@@ -14,6 +14,7 @@ import defectRoutes    from './routes/defects';
 import adminRoutes from './routes/admin';
 import tokenRoutes  from './routes/tokens';  
 import aiConfigRoutes from './routes/aiConfig'; 
+import discoveryRoutes from './routes/discovery'; 
 import apiRegistryRoutes from './routes/apiRegistry';
 
 import  './config/db';
@@ -44,7 +45,10 @@ app.use('/api/defects',   defectRoutes);
 app.use('/api/admin', adminRoutes); 
 app.use('/api/tokens',    tokenRoutes); 
 app.use('/api/ai-config', aiConfigRoutes); 
-app.use('/api/registry', apiRegistryRoutes);
+app.use('/api/discovery', discoveryRoutes);
+app.use('/api/registry', apiRegistryRoutes); 
+
+
 
 
 // Health check route

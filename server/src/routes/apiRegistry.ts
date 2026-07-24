@@ -14,14 +14,14 @@ import isAdmin                                                             from 
 const router = Router();
 
 // All users
-router.get('/',                     authenticate,          getAPIs);
-router.get('/:apiId/variables',     authenticate,          getVariables);
-router.post('/:apiId/variables',    authenticate,          saveVariable);
+router.get('/',                  authenticate,          getAPIs);
+router.get('/:apiId/variables',  authenticate,          getVariables);
+router.post('/:apiId/variables', authenticate,          saveVariable);
 
 // Admin only
-router.post('/',                    authenticate, isAdmin, createAPI);
-router.put('/:id',                  authenticate, isAdmin, updateAPI);
-router.delete('/:id',              authenticate, isAdmin, deleteAPI);
-router.post('/import/postman',      authenticate, isAdmin, importFromPostman);
+router.post('/import/postman',   authenticate, isAdmin, importFromPostman);
+router.post('/',                 authenticate, isAdmin, createAPI);
+router.put('/:id',               authenticate, isAdmin, updateAPI);
+router.delete('/:id',            authenticate, isAdmin, deleteAPI);
 
 export default router;
