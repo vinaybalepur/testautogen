@@ -178,3 +178,127 @@ CHECK (status IN ('pending', 'running', 'passed', 'failed', 'error', 'timeout'))
 ALTER TABLE test_cases DROP CONSTRAINT IF EXISTS test_cases_status_check;
 ALTER TABLE test_cases ADD CONSTRAINT test_cases_status_check
 CHECK (status IN ('draft', 'approved', 'rejected', 'modified', 'approved_modified'));
+
+-- Added table details required for discovery phase of test case generation
+-- API Registry
+CREATE TABLE api_registry (
+  id              SERIAL PRIMARY KEY,
+  user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  name            VARCHAR(200) NOT NULL,
+  method          VARCHAR(10)  NOT NULL
+                  CHECK (method IN ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')),
+  path            VARCHAR(500) NOT NULL,
+  auth_type       VARCHAR(20)  DEFAULT 'none'
+                  CHECK (auth_type IN ('bearer', 'basic', 'api_key', 'none')),
+  headers         JSONB DEFAULT '[]',
+  body            JSONB,
+  response_schema JSONB,
+  source          VARCHAR(20)  DEFAULT 'manual'
+                  CHECK (source IN ('manual', 'postman')),
+  created_at      TIMESTAMP DEFAULT NOW(),
+  updated_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- API Registry Variables (persisted per user per API)
+CREATE TABLE api_registry_variables (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  api_id     INTEGER REFERENCES api_registry(id) ON DELETE CASCADE,
+  name       VARCHAR(100) NOT NULL,
+  value      TEXT,
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE (user_id, api_id, name)
+);
+
+-- Collection Order per ticket
+CREATE TABLE api_collection_orders (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  ticket_key  VARCHAR(50)  NOT NULL,
+  api_id      INTEGER REFERENCES api_registry(id) ON DELETE CASCADE,
+  step_order  INTEGER NOT NULL,
+  UNIQUE (user_id, ticket_key, step_order)
+);
+
+-- Discovery Results per ticket
+CREATE TABLE collection_discovery (
+  id               SERIAL PRIMARY KEY,
+  ticket_key       VARCHAR(50) NOT NULL UNIQUE,
+  status           VARCHAR(20) DEFAULT 'pending'
+                   CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+  run_by           INTEGER REFERENCES users(id),
+  response_schemas JSONB,
+  extracted_vars   JSONB,
+  api_chain        JSONB,
+  discovery_required BOOLEAN DEFAULT TRUE,
+  error            TEXT,
+  started_at       TIMESTAMP,
+  completed_at     TIMESTAMP,
+  created_at       TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_api_registry_user        ON api_registry(user_id);
+CREATE INDEX idx_api_registry_variables   ON api_registry_variables(user_id, api_id);
+CREATE INDEX idx_collection_orders        ON api_collection_orders(user_id, ticket_key);
+CREATE INDEX idx_collection_discovery     ON collection_discovery(ticket_key);
+
+
+-- API Registry
+CREATE TABLE api_registry (
+  id              SERIAL PRIMARY KEY,
+  user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  name            VARCHAR(200) NOT NULL,
+  method          VARCHAR(10)  NOT NULL
+                  CHECK (method IN ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')),
+  path            VARCHAR(500) NOT NULL,
+  auth_type       VARCHAR(20)  DEFAULT 'none'
+                  CHECK (auth_type IN ('bearer', 'basic', 'api_key', 'none')),
+  headers         JSONB DEFAULT '[]',
+  body            JSONB,
+  response_schema JSONB,
+  source          VARCHAR(20)  DEFAULT 'manual'
+                  CHECK (source IN ('manual', 'postman')),
+  created_at      TIMESTAMP DEFAULT NOW(),
+  updated_at      TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE api_registry_variables (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  api_id     INTEGER REFERENCES api_registry(id) ON DELETE CASCADE,
+  name       VARCHAR(100) NOT NULL,
+  value      TEXT,
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE (user_id, api_id, name)
+);
+
+CREATE TABLE api_collection_orders (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  ticket_key  VARCHAR(50)  NOT NULL,
+  api_id      INTEGER REFERENCES api_registry(id) ON DELETE CASCADE,
+  step_order  INTEGER NOT NULL,
+  UNIQUE (user_id, ticket_key, step_order)
+);
+
+CREATE TABLE collection_discovery (
+  id                 SERIAL PRIMARY KEY,
+  ticket_key         VARCHAR(50) NOT NULL UNIQUE,
+  status             VARCHAR(20) DEFAULT 'pending'
+                     CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+  run_by             INTEGER REFERENCES users(id),
+  response_schemas   JSONB,
+  extracted_vars     JSONB,
+  api_chain          JSONB,
+  discovery_required BOOLEAN DEFAULT TRUE,
+  error              TEXT,
+  started_at         TIMESTAMP,
+  completed_at       TIMESTAMP,
+  created_at         TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_api_registry_user      ON api_registry(user_id);
+CREATE INDEX idx_api_registry_variables ON api_registry_variables(user_id, api_id);
+CREATE INDEX idx_collection_orders      ON api_collection_orders(user_id, ticket_key);
+CREATE INDEX idx_collection_discovery   ON collection_discovery(ticket_key);
