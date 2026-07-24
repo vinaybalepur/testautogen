@@ -178,3 +178,38 @@ CHECK (status IN ('pending', 'running', 'passed', 'failed', 'error', 'timeout'))
 ALTER TABLE test_cases DROP CONSTRAINT IF EXISTS test_cases_status_check;
 ALTER TABLE test_cases ADD CONSTRAINT test_cases_status_check
 CHECK (status IN ('draft', 'approved', 'rejected', 'modified', 'approved_modified'));
+
+-- ── Discovery columns for api_registry ────────────────
+ALTER TABLE api_registry
+ADD COLUMN IF NOT EXISTS response_schema JSONB,
+ADD COLUMN IF NOT EXISTS discovered_at   TIMESTAMP;
+
+-- ── Collection Discovery (per ticket chain) ────────────
+CREATE TABLE IF NOT EXISTS collection_discovery (
+  id               SERIAL PRIMARY KEY,
+  ticket_key       VARCHAR(50) NOT NULL UNIQUE,
+  status           VARCHAR(20) DEFAULT 'pending'
+                   CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+  run_by           INTEGER REFERENCES users(id),
+  api_ids          JSONB,
+  base_url         TEXT,
+  response_schemas JSONB,
+  extracted_vars   JSONB,
+  api_chain        JSONB,
+  error            TEXT,
+  started_at       TIMESTAMP,
+  completed_at     TIMESTAMP,
+  created_at       TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_collection_discovery ON collection_discovery(ticket_key);
+
+-- ── Add missing columns to collection_discovery ────────
+ALTER TABLE collection_discovery
+ADD COLUMN IF NOT EXISTS api_ids  JSONB,
+ADD COLUMN IF NOT EXISTS base_url TEXT;
+
+-- ── Add discovery cache columns to api_registry ────────
+ALTER TABLE api_registry
+ADD COLUMN IF NOT EXISTS response_schema JSONB,
+ADD COLUMN IF NOT EXISTS discovered_at   TIMESTAMP;
