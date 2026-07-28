@@ -6,9 +6,8 @@ export const getAPIs = async (req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(
       `SELECT * FROM api_registry
-       WHERE user_id = $1
        ORDER BY created_at ASC`,
-      [req.userId]
+      
     );
     res.json({ apis: result.rows });
   } catch (err) {
@@ -257,9 +256,8 @@ export const getVariables = async (req: Request, res: Response): Promise<void> =
     const result = await pool.query(
       `SELECT name, value, updated_at
        FROM api_registry_variables
-       WHERE user_id = $1
-       AND   api_id  = $2`,
-      [req.userId, apiId]
+       WHERE api_id = $1`,
+      [ apiId]
     );
     res.json({ variables: result.rows });
   } catch (err) {
