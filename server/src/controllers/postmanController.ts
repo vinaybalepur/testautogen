@@ -26,12 +26,11 @@ export const generateCollection = async (req: Request, res: Response): Promise<v
   try {
     // Check if collection already exists
     const existing = await pool.query(
-      `SELECT id, collection_name, created_at
-       FROM postman_collections
-       WHERE ticket_key = $1
-       AND   user_id    = $2`,
-      [ticketKey, req.userId]
-    );
+  `SELECT id, collection_name, created_at
+   FROM postman_collections
+   WHERE ticket_key = $1`,
+  [ticketKey]
+);
 
     // If exists and user has not confirmed regeneration
     if (existing.rows.length > 0 && !forceRegenerate) {
@@ -49,10 +48,9 @@ export const generateCollection = async (req: Request, res: Response): Promise<v
     const result = await pool.query(
       `SELECT test_case FROM test_cases
        WHERE jira_id = $1
-       AND   user_id = $2
        AND   status  = 'approved'
        ORDER BY created_at ASC`,
-      [ticketKey, req.userId]
+      [ticketKey]
     );
 
     if (result.rows.length === 0) {
@@ -84,13 +82,11 @@ export const generateCollection = async (req: Request, res: Response): Promise<v
            collection_json = $2,
            created_at      = NOW()
          WHERE ticket_key = $3
-         AND   user_id    = $4
          RETURNING id, ticket_key, collection_name, created_at`,
         [
           `${ticketKey} Test Collection`,
           JSON.stringify(collection),
-          ticketKey,
-          req.userId
+          ticketKey
         ]
       );
     } else {
@@ -149,9 +145,8 @@ export const getCollections = async (req: Request, res: Response): Promise<void>
       `SELECT id, ticket_key, collection_name, created_at
        FROM postman_collections
        WHERE ticket_key = $1
-       AND   user_id    = $2
        ORDER BY created_at DESC`,
-      [ticketKey, req.userId]
+      [ticketKey]
     );
 
     res.json({
@@ -173,9 +168,8 @@ export const getCollection = async (req: Request, res: Response): Promise<void> 
   try {
     const result = await pool.query(
       `SELECT * FROM postman_collections
-       WHERE id      = $1
-       AND   user_id = $2`,
-      [id, req.userId]
+       WHERE id      = $1`,
+      [id]
     );
 
     if (result.rows.length === 0) {
@@ -198,9 +192,8 @@ export const downloadCollection = async (req: Request, res: Response): Promise<v
   try {
     const result = await pool.query(
       `SELECT * FROM postman_collections
-       WHERE id      = $1
-       AND   user_id = $2`,
-      [id, req.userId]
+       WHERE id      = $1`,
+      [id]
     );
 
     if (result.rows.length === 0) {
