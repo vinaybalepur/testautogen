@@ -99,7 +99,7 @@ const TicketDetail: React.FC = () => {
   const [runningDiscovery, setRunningDiscovery] = useState(false);
   const [generatingCollection, setGeneratingCollection] = useState(false);
   const [postmanMsg, setPostmanMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
+  const [collection, setCollection] = useState<any | null>(null);
 
   useEffect(() => {
     if (!ticketKey) return;
@@ -109,8 +109,10 @@ const TicketDetail: React.FC = () => {
   }, [ticketKey]);
 
   useEffect(() => {
-    if (activeTab === 'testcases') fetchTestCases();
-    if (activeTab === 'postman') fetchRegistryAPIs();   // ← add this
+    if (activeTab === 'postman') {
+      fetchRegistryAPIs();
+      fetchCollection();
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -400,6 +402,17 @@ const TicketDetail: React.FC = () => {
     }
   };
 
+  const fetchCollection = async () => {
+    try {
+      const { data } = await api.get(`/postman/${ticketKey}`);
+      if (data.collections?.length > 0) {
+        setCollection(data.collections[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch collection:', err);
+    }
+  };
+
   const handleAddAPI = (api_entry: any) => {
     if (selectedAPIs.find(a => a.id === api_entry.id)) return;
     setSelectedAPIs(prev => [...prev, api_entry]);
@@ -421,6 +434,23 @@ const TicketDetail: React.FC = () => {
     const newList = [...selectedAPIs];
     [newList[index], newList[index + 1]] = [newList[index + 1], newList[index]];
     setSelectedAPIs(newList);
+  };
+
+  const handleDownloadCollection = async (collectionId: number) => {
+    try {
+      const response = await api.get(`/postman/collection/${collectionId}/download`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${ticketKey}-collection.json`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Failed to download collection:', err);
+    }
   };
 
   const handleRunDiscovery = async () => {
@@ -458,15 +488,7 @@ const TicketDetail: React.FC = () => {
   };
 
   const handleGenerateCollection = async () => {
-    console.log('postmanVars:', postmanVars);
-    console.log('State:', { selectedProvider, selectedModel, discovery, postmanVars });
-    console.log('Sending to generate:', {
-  ticketKey,
-  provider:    selectedProvider,
-  model:       selectedModel,
-  baseUrl:     baseUrl.trim(),
-  password:    postmanVars['auth_password'] || postmanVars['password'] || '',
-});
+
     if (!discovery || discovery.status !== 'completed') {
       setPostmanMsg({ type: 'error', text: 'Run discovery first' });
       return;
@@ -492,6 +514,7 @@ const TicketDetail: React.FC = () => {
         forceRegenerate: true
       });
       setPostmanMsg({ type: 'success', text: '✅ Collection generated!' });
+      setCollection(data.collectionId);
     } catch (err: any) {
       setPostmanMsg({ type: 'error', text: err.response?.data?.error || 'Failed to generate collection' });
     } finally {
@@ -1286,7 +1309,26 @@ const TicketDetail: React.FC = () => {
                 </button>
               </div>
             )}
-
+            {collection && (
+              <div style={{
+                display: 'flex',
+                gap: 10,
+                marginTop: 10
+              }}>
+                <button
+                  onClick={() => handleDownloadCollection(collection.id)}
+                  className="btn btn-full"
+                  style={{
+                    marginTop: 10,
+                    background: 'rgba(239,68,68,0.1)',
+                    color: '#000000',
+                    border: '1px solid rgba(239,68,68,0.3)'
+                  }}
+                >
+                  ⬇️ Download Collection 
+                </button>
+              </div>
+            )}
           </div>
         )}
 
