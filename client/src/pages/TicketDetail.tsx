@@ -351,54 +351,54 @@ const TicketDetail: React.FC = () => {
     }
   };
 
-const fetchDiscovery = async () => {
-  setDiscoveryLoading(true);
-  try {
-    const { data } = await api.get(`/discovery/${ticketKey}/status`);
-    if (data.discovery) {
-      setDiscovery(data.discovery);
-      if (data.discovery.base_url) setBaseUrl(data.discovery.base_url);
+  const fetchDiscovery = async () => {
+    setDiscoveryLoading(true);
+    try {
+      const { data } = await api.get(`/discovery/${ticketKey}/status`);
+      if (data.discovery) {
+        setDiscovery(data.discovery);
+        if (data.discovery.base_url) setBaseUrl(data.discovery.base_url);
 
-      // Start with empty vars
-      const vars: Record<string, string> = {};
+        // Start with empty vars
+        const vars: Record<string, string> = {};
 
-      // Add saved registry variables for selected APIs
-      if (data.discovery.api_ids) {
-        for (const apiId of data.discovery.api_ids) {
-          try {
-            const { data: varData } = await api.get(`/registry/${apiId}/variables`);
-            for (const v of varData.variables) {
-              vars[v.name] = v.value || '';
+        // Add saved registry variables for selected APIs
+        if (data.discovery.api_ids) {
+          for (const apiId of data.discovery.api_ids) {
+            try {
+              const { data: varData } = await api.get(`/registry/${apiId}/variables`);
+              for (const v of varData.variables) {
+                vars[v.name] = v.value || '';
+              }
+            } catch {
+              // ignore
             }
-          } catch {
-            // ignore
           }
         }
-      }
 
-      // Add extracted vars from discovery (overwrite if conflict)
-      if (data.discovery.extracted_vars) {
-        for (const apiVars of data.discovery.extracted_vars) {
-          Object.assign(vars, apiVars.variables);
+        // Add extracted vars from discovery (overwrite if conflict)
+        if (data.discovery.extracted_vars) {
+          for (const apiVars of data.discovery.extracted_vars) {
+            Object.assign(vars, apiVars.variables);
+          }
+        }
+
+        setPostmanVars(vars);
+
+        // Pre-select APIs
+        if (data.discovery.api_ids && registryAPIs.length > 0) {
+          const ordered = data.discovery.api_ids
+            .map((id: number) => registryAPIs.find(a => a.id === id))
+            .filter(Boolean);
+          setSelectedAPIs(ordered);
         }
       }
-
-      setPostmanVars(vars);
-
-      // Pre-select APIs
-      if (data.discovery.api_ids && registryAPIs.length > 0) {
-        const ordered = data.discovery.api_ids
-          .map((id: number) => registryAPIs.find(a => a.id === id))
-          .filter(Boolean);
-        setSelectedAPIs(ordered);
-      }
+    } catch (err) {
+      console.error('Failed to fetch discovery:', err);
+    } finally {
+      setDiscoveryLoading(false);
     }
-  } catch (err) {
-    console.error('Failed to fetch discovery:', err);
-  } finally {
-    setDiscoveryLoading(false);
-  }
-};
+  };
 
   const handleAddAPI = (api_entry: any) => {
     if (selectedAPIs.find(a => a.id === api_entry.id)) return;
@@ -458,10 +458,25 @@ const fetchDiscovery = async () => {
   };
 
   const handleGenerateCollection = async () => {
+    console.log('postmanVars:', postmanVars);
+    console.log('State:', { selectedProvider, selectedModel, discovery, postmanVars });
+    console.log('Sending to generate:', {
+  ticketKey,
+  provider:    selectedProvider,
+  model:       selectedModel,
+  baseUrl:     baseUrl.trim(),
+  password:    postmanVars['auth_password'] || postmanVars['password'] || '',
+});
     if (!discovery || discovery.status !== 'completed') {
       setPostmanMsg({ type: 'error', text: 'Run discovery first' });
       return;
     }
+
+    if (!selectedProvider || !selectedModel) {
+      setPostmanMsg({ type: 'error', text: 'Please configure an AI provider in Settings first' });
+      return;
+    }
+
     setGeneratingCollection(true);
     try {
       const { data } = await api.post('/postman/generate', {
@@ -470,8 +485,11 @@ const fetchDiscovery = async () => {
         model: selectedModel,
         modelFamily: selectedProvider,
         baseUrl: baseUrl.trim(),
+        username: postmanVars['auth_username'] || postmanVars['username'] || '',
+        password: postmanVars['auth_password'] || postmanVars['password'] || '',
         variables: postmanVars,
-        apiIds: selectedAPIs.map(a => a.id)
+        apiIds: selectedAPIs.map(a => a.id),
+        forceRegenerate: true
       });
       setPostmanMsg({ type: 'success', text: '✅ Collection generated!' });
     } catch (err: any) {
@@ -1219,38 +1237,54 @@ const fetchDiscovery = async () => {
 
                   {/* Extracted variables */}
                   {Object.entries(postmanVars)
-  .filter(([key]) => !['token', 'auth_token'].includes(key))  // hide auto tokens
-  .map(([key, value]) => (
-    <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, alignItems: 'center' }}>
-      <span style={{ fontSize: '0.85em', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
-        {key}
-      </span>
-      <input
-        type={key.toLowerCase().includes('password') ? 'password' : 'text'}
-        className="form-input"
-        value={value}
-        onChange={e => setPostmanVars(prev => ({ ...prev, [key]: e.target.value }))}
-        style={{ fontSize: '0.82em', padding: '6px 10px' }}
-      />
-    </div>
-  ))
-}
+                    .filter(([key]) => !['token', 'auth_token'].includes(key))  // hide auto tokens
+                    .map(([key, value]) => (
+                      <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85em', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                          {key}
+                        </span>
+                        <input
+                          type={key.toLowerCase().includes('password') ? 'password' : 'text'}
+                          className="form-input"
+                          value={value}
+                          onChange={e => setPostmanVars(prev => ({ ...prev, [key]: e.target.value }))}
+                          style={{ fontSize: '0.82em', padding: '6px 10px' }}
+                        />
+                      </div>
+                    ))
+                  }
                 </div>
               </div>
             )}
 
             {/* Section 4 — Generate */}
             {discovery?.status === 'completed' && (
-              <button
-                onClick={handleGenerateCollection}
-                className="btn btn-primary btn-full btn-lg"
-                disabled={generatingCollection}
-              >
-                {generatingCollection
-                  ? <><span className="spinner" /> Generating...</>
-                  : '📮 Generate Postman Collection'
-                }
-              </button>
+              <div>
+                {/* Provider info */}
+                <div style={{
+                  background: 'rgba(99,102,241,0.06)',
+                  border: '1px solid rgba(99,102,241,0.15)',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  marginBottom: 12,
+                  fontSize: '0.82em',
+                  color: 'var(--text-secondary)'
+                }}>
+                  🤖 Will use <strong>{selectedProvider || 'No provider configured'}</strong>
+                  {selectedModel && <> · <strong>{selectedModel}</strong></>} to generate collection
+                </div>
+
+                <button
+                  onClick={handleGenerateCollection}
+                  className="btn btn-primary btn-full btn-lg"
+                  disabled={generatingCollection || !selectedProvider}
+                >
+                  {generatingCollection
+                    ? <><span className="spinner" /> Generating...</>
+                    : '📮 Generate Postman Collection'
+                  }
+                </button>
+              </div>
             )}
 
           </div>

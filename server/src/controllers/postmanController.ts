@@ -26,12 +26,11 @@ export const generateCollection = async (req: Request, res: Response): Promise<v
   try {
     // Check if collection already exists
     const existing = await pool.query(
-      `SELECT id, collection_name, created_at
-       FROM postman_collections
-       WHERE ticket_key = $1
-       AND   user_id    = $2`,
-      [ticketKey, req.userId]
-    );
+  `SELECT id, collection_name, created_at
+   FROM postman_collections
+   WHERE ticket_key = $1`,
+  [ticketKey]
+);
 
     // If exists and user has not confirmed regeneration
     if (existing.rows.length > 0 && !forceRegenerate) {
@@ -149,9 +148,8 @@ export const getCollections = async (req: Request, res: Response): Promise<void>
       `SELECT id, ticket_key, collection_name, created_at
        FROM postman_collections
        WHERE ticket_key = $1
-       AND   user_id    = $2
        ORDER BY created_at DESC`,
-      [ticketKey, req.userId]
+      [ticketKey]
     );
 
     res.json({
