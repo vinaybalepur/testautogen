@@ -54,9 +54,8 @@ export const runCollection = async (req: Request, res: Response): Promise<void> 
 
     const collectionResult = await pool.query(
       `SELECT * FROM postman_collections
-       WHERE id      = $1
-       AND   user_id = $2`,
-      [collectionId, req.userId]
+       WHERE id      = $1`,
+      [collectionId]
     );
 
     if (collectionResult.rows.length === 0) {
@@ -181,9 +180,8 @@ export const getRunStatus = async (req: Request, res: Response): Promise<void> =
            ELSE false
          END AS has_report
        FROM test_runs
-       WHERE id      = $1
-       AND   user_id = $2`,
-      [runId, req.userId]
+       WHERE id      = $1`,
+      [runId]
     );
 
     if (result.rows.length === 0) {
@@ -223,9 +221,8 @@ export const getReport = async (req: Request, res: Response): Promise<void> => {
     const result = await pool.query(
       `SELECT report_path, ticket_key, status
        FROM test_runs
-       WHERE id      = $1
-       AND   user_id = $2`,
-      [runId, req.userId]
+       WHERE id      = $1`,
+      [runId]
     );
 
     if (result.rows.length === 0) {
@@ -262,9 +259,8 @@ export const getCollectionRuns = async (req: Request, res: Response): Promise<vo
          CASE WHEN report_path IS NOT NULL THEN true ELSE false END AS has_report
        FROM test_runs
        WHERE collection_id = $1
-       AND   user_id       = $2
        ORDER BY run_at DESC`,
-      [collectionId, req.userId]
+      [collectionId]
     );
 
     res.json({
@@ -294,9 +290,8 @@ export const getTicketRuns = async (req: Request, res: Response): Promise<void> 
        FROM test_runs tr
        JOIN postman_collections pc ON pc.id = tr.collection_id
        WHERE tr.ticket_key = $1
-       AND   tr.user_id    = $2
        ORDER BY tr.run_at DESC`,
-      [ticketKey, req.userId]
+      [ticketKey]
     );
 
     res.json({
