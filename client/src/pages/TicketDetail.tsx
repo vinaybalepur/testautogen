@@ -101,6 +101,13 @@ const TicketDetail: React.FC = () => {
   const [postmanMsg, setPostmanMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [collection, setCollection] = useState<any | null>(null);
 
+  // Runs tab
+  const [runs, setRuns] = useState<any[]>([]);
+  const [runsLoading, setRunsLoading] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [runMsg, setRunMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [activeRunId, setActiveRunId] = useState<number | null>(null);
+
   useEffect(() => {
     if (!ticketKey) return;
     fetchTicket();
@@ -119,12 +126,16 @@ const TicketDetail: React.FC = () => {
     if (selectedProvider) fetchModels(selectedProvider);
   }, [selectedProvider]);
 
-  // ← Add this new one
+
   useEffect(() => {
     if (registryAPIs.length > 0 && activeTab === 'postman') {
       fetchDiscovery();
     }
   }, [registryAPIs]);
+
+  useEffect(() => {
+    if (activeTab === 'runs') fetchRuns();
+  }, [activeTab]);
 
   const fetchTicket = async () => {
     setTicketLoading(true);
@@ -519,6 +530,68 @@ const TicketDetail: React.FC = () => {
       setPostmanMsg({ type: 'error', text: err.response?.data?.error || 'Failed to generate collection' });
     } finally {
       setGeneratingCollection(false);
+    }
+  };
+
+  const fetchRuns = async () => {
+    setRunsLoading(true);
+    try {
+      const { data } = await api.get(`/newman/tickets/${ticketKey}/runs`);
+      setRuns(data.runs || []);
+    } catch (err) {
+      console.error('Failed to fetch runs:', err);
+    } finally {
+      setRunsLoading(false);
+    }
+  };
+
+  const handleRunCollection = async () => {
+    if (!collection) {
+      setRunMsg({ type: 'error', text: 'Generate a Postman collection first' });
+      return;
+    }
+    setRunning(true);
+    setRunMsg(null);
+    try {
+      const { data } = await api.post(`/newman/run/${collection.id}`);
+      setActiveRunId(data.runId);
+      setRunMsg({ type: 'success', text: '⏳ Run started...' });
+
+      // Poll for completion
+      const interval = setInterval(async () => {
+        try {
+          const { data: statusData } = await api.get(`/newman/runs/${data.runId}`);
+          const status = statusData.run?.status;
+          if (['passed', 'failed', 'error', 'timeout'].includes(status)) {
+            clearInterval(interval);
+            setRunning(false);
+            fetchRuns();
+            setRunMsg({
+              type: status === 'passed' ? 'success' : 'error',
+              text: status === 'passed' ? '✅ All tests passed!' : `❌ Run ${status}`
+            });
+          }
+        } catch {
+          clearInterval(interval);
+          setRunning(false);
+        }
+      }, 3000);
+
+    } catch (err: any) {
+      setRunning(false);
+      setRunMsg({ type: 'error', text: err.response?.data?.error || 'Failed to start run' });
+    }
+  };
+
+  const handleViewReport = async (runId: number) => {
+    try {
+      const { data } = await api.get(`/newman/runs/${runId}/report`);
+      // Open report in new tab
+      const blob = new Blob([data], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch (err) {
+      console.error('Failed to fetch report:', err);
     }
   };
 
@@ -1325,7 +1398,7 @@ const TicketDetail: React.FC = () => {
                     border: '1px solid rgba(239,68,68,0.3)'
                   }}
                 >
-                  ⬇️ Download Collection 
+                  ⬇️ Download Collection
                 </button>
               </div>
             )}
@@ -1334,10 +1407,116 @@ const TicketDetail: React.FC = () => {
 
         {/* ── RUNS TAB ── */}
         {activeTab === 'runs' && (
-          <div className="empty-state">
-            <div className="empty-state-icon">🏃</div>
-            <h3>Test Runs</h3>
-            <p>Coming soon</p>
+          <div>
+            {runMsg && (
+              <div className={`status-msg ${runMsg.type}`} style={{ marginBottom: 16 }}>
+                {runMsg.text}
+              </div>
+            )}
+
+            {/* Run Button */}
+            <div style={{ marginBottom: 20 }}>
+              <button
+                onClick={handleRunCollection}
+                className="btn btn-primary"
+                disabled={running || !collection}
+                title={!collection ? 'Generate a Postman collection first' : ''}
+              >
+                {running ? <><span className="spinner" /> Running...</> : '▶️ Run Collection'}
+              </button>
+              {!collection && (
+                <span style={{ fontSize: '0.82em', color: 'var(--text-secondary)', marginLeft: 10 }}>
+                  Generate a collection in the Postman tab first
+                </span>
+              )}
+            </div>
+
+            {/* Runs List */}
+            {runsLoading ? (
+              <div className="spinner-container">
+                <span className="spinner spinner-lg" />
+                <span>Loading runs...</span>
+              </div>
+            ) : runs.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">🏃</div>
+                <h3>No runs yet</h3>
+                <p>Click Run Collection to start your first test run</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {runs.map(run => (
+                  <div key={run.id} className="card" style={{ padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+
+                      {/* Status Icon */}
+                      <span style={{ fontSize: '1.2em' }}>
+                        {run.status === 'passed' && '✅'}
+                        {run.status === 'failed' && '❌'}
+                        {run.status === 'running' && '⏳'}
+                        {run.status === 'error' && '🔴'}
+                        {run.status === 'timeout' && '⏱️'}
+                        {run.status === 'pending' && '⚪'}
+                      </span>
+
+                      {/* Run Info */}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.9em', color: 'var(--text-primary)' }}>
+                          Run #{run.id}
+                        </div>
+                        <div style={{ fontSize: '0.78em', color: 'var(--text-secondary)' }}>
+                          {new Date(run.run_at).toLocaleString()}
+                          {run.duration_ms && ` · ${(run.duration_ms / 1000).toFixed(1)}s`}
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      {run.total !== null && (
+                        <div style={{ display: 'flex', gap: 12, fontSize: '0.82em' }}>
+                          {/* Date — use run_at not created_at */}
+                          {new Date(run.run_at).toLocaleString()}
+
+                          {/* Duration */}
+                          {run.duration_ms && ` · ${(run.duration_ms / 1000).toFixed(1)}s`}
+
+                          {/* Stats — use total_tests not total */}
+                          <span style={{ color: '#10b981', fontWeight: 600 }}>
+                            ✅ {run.passed}
+                          </span>
+                          <span style={{ color: '#ef4444', fontWeight: 600 }}>
+                            ❌ {run.failed}
+                          </span>
+                          <span style={{ color: 'var(--text-secondary)' }}>
+                            / {run.total_tests}
+                          </span>
+
+                          {/* Report button — use has_report not report_path */}
+                          {run.has_report && (
+                            <button
+                              onClick={() => handleViewReport(run.id)}
+                              className="btn btn-secondary btn-sm"
+                            >
+                              📄 Report
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* View Report Button */}
+                      {run.report_path && (
+                        <button
+                          onClick={() => handleViewReport(run.id)}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          📄 Report
+                        </button>
+                      )}
+
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

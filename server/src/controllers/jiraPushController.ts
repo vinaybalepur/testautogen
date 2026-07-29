@@ -19,8 +19,9 @@ export const pushTestCasesToJira = async (req: Request, res: Response): Promise<
         const result = await pool.query(
        `SELECT * FROM test_cases
        WHERE jira_id = $1
+       AND   user_id = $2
        AND   status  IN ('approved', 'approved_modified')`,
-            [ticketKey]
+            [ticketKey, req.userId]
         );
 
         if (result.rows.length === 0) {
