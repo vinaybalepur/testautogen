@@ -166,21 +166,20 @@ export const getDefectsByTicket = async (req: Request, res: Response): Promise<v
   try {
     const result = await pool.query(
       `SELECT
-     d.id,
-     d.test_case_id,
-     d.defect_jira_key,
-     d.summary,
-     d.expected,
-     d.actual,
-     d.created_at,
-     tc.test_case,
-     tr.run_at,
-     tr.status AS run_status
-   FROM defects d
-   JOIN test_cases tc ON tc.id = d.test_case_id
-   JOIN test_runs  tr ON tr.id = d.run_id
-   WHERE d.ticket_key = $1
-   ORDER BY d.created_at DESC`,
+         d.id,
+         d.defect_jira_key,
+         d.summary,
+         d.expected,
+         d.actual,
+         d.created_at,
+         tc.test_case,
+         tr.run_at,
+         tr.status AS run_status
+       FROM defects d
+       JOIN test_cases tc ON tc.id = d.test_case_id
+       JOIN test_runs  tr ON tr.id = d.run_id
+       WHERE d.ticket_key = $1
+       ORDER BY d.created_at DESC`,
       [ticketKey]
     );
 
