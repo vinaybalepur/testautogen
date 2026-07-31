@@ -1,14 +1,14 @@
 import { Request, Response } from 'express';
-import pool                   from '../config/db';
-import { createDefect }       from '../services/jiraService';
+import pool from '../config/db';
+import { createDefect } from '../services/jiraService';
 
 interface RunDetails {
-  status:          string;
-  run_at:          Date;
-  total_tests:     number;
-  passed:          number;
-  failed:          number;
-  report_json:     any;
+  status: string;
+  run_at: Date;
+  total_tests: number;
+  passed: number;
+  failed: number;
+  report_json: any;
   collection_name: string;
 }
 
@@ -28,25 +28,23 @@ export const createDefectFromFailure = async (req: Request, res: Response): Prom
     // Check if defect already exists for this test case and run
     const existing = await pool.query(
       `SELECT id, defect_jira_key FROM defects
-       WHERE test_case_id = $1
-       AND   run_id       = $2`,
-      [testCaseId, runId]
+   WHERE test_case_id = $1
+   AND   ticket_key    = $2`,
+      [testCaseId, ticketKey]
     );
 
     if (existing.rows.length > 0) {
-      res.status(409).json({
-        error:         'Defect already exists for this test case and run',
-        defectJiraKey: existing.rows[0].defect_jira_key
+      res.status(200).json({
+        message: 'Defect already exists for this test case',
+        defect: existing.rows[0]
       });
       return;
     }
-
     // Get test case details from DB
     const testCase = await pool.query(
       `SELECT test_case FROM test_cases
-       WHERE id      = $1
-       AND   user_id = $2`,
-      [testCaseId, req.userId]
+       WHERE id      = $1`,
+      [testCaseId]
     );
 
     if (testCase.rows.length === 0) {
@@ -66,9 +64,8 @@ export const createDefectFromFailure = async (req: Request, res: Response): Prom
          pc.collection_name
        FROM test_runs tr
        JOIN postman_collections pc ON pc.id = tr.collection_id
-       WHERE tr.id      = $1
-       AND   tr.user_id = $2`,
-      [runId, req.userId]
+       WHERE tr.id      = $1`,
+      [runId]
     );
 
     if (run.rows.length === 0) {
@@ -77,11 +74,11 @@ export const createDefectFromFailure = async (req: Request, res: Response): Prom
     }
 
     const testCaseText = testCase.rows[0].test_case;
-    const runDetails   = run.rows[0];
+    const runDetails = run.rows[0];
 
     // Extract expected and actual from report_json
-    let expected     = 'See test case for expected result';
-    let actual       = 'Test assertion failed';
+    let expected = 'See test case for expected result';
+    let actual = 'Test assertion failed';
     let responseData = null;
 
     if (runDetails.report_json) {
@@ -92,12 +89,12 @@ export const createDefectFromFailure = async (req: Request, res: Response): Prom
 
       if (failedExec) {
         const failedAssertion = failedExec.assertions?.find((a: any) => a.error);
-        expected     = failedAssertion?.assertion || expected;
-        actual       = failedAssertion?.error?.message || actual;
+        expected = failedAssertion?.assertion || expected;
+        actual = failedAssertion?.error?.message || actual;
         responseData = {
-          statusCode:   failedExec.response?.code,
+          statusCode: failedExec.response?.code,
           responseTime: failedExec.response?.responseTime,
-          body:         failedExec.response?.body
+          body: failedExec.response?.body
         };
       }
     }
@@ -147,9 +144,9 @@ export const createDefectFromFailure = async (req: Request, res: Response): Prom
     );
 
     res.status(201).json({
-      message:       'Defect created successfully',
+      message: 'Defect created successfully',
       defectJiraKey,
-      defect:        result.rows[0]
+      defect: result.rows[0]
     });
 
   } catch (err: any) {
@@ -182,14 +179,13 @@ export const getDefectsByTicket = async (req: Request, res: Response): Promise<v
        JOIN test_cases tc ON tc.id = d.test_case_id
        JOIN test_runs  tr ON tr.id = d.run_id
        WHERE d.ticket_key = $1
-       AND   tc.user_id   = $2
        ORDER BY d.created_at DESC`,
-      [ticketKey, req.userId]
+      [ticketKey]
     );
 
     res.json({
       ticketKey,
-      count:   result.rows.length,
+      count: result.rows.length,
       defects: result.rows
     });
 
@@ -217,14 +213,13 @@ export const getDefectsByRun = async (req: Request, res: Response): Promise<void
        FROM defects d
        JOIN test_cases tc ON tc.id = d.test_case_id
        WHERE d.run_id    = $1
-       AND   tc.user_id  = $2
        ORDER BY d.created_at DESC`,
-      [runId, req.userId]
+      [runId]
     );
 
     res.json({
       runId,
-      count:   result.rows.length,
+      count: result.rows.length,
       defects: result.rows
     });
 
@@ -236,13 +231,13 @@ export const getDefectsByRun = async (req: Request, res: Response): Promise<void
 
 // ── BUILD DEFECT DESCRIPTION ───────────────────────────
 const buildDefectDescription = (
-  testCase:     string,
-  expected:     string,
-  actual:       string,
+  testCase: string,
+  expected: string,
+  actual: string,
   responseData: any,
-  runId:        number,
-  ticketKey:    string,
-  runDetails:   RunDetails
+  runId: number,
+  ticketKey: string,
+  runDetails: RunDetails
 ): string => {
   return `
 TEST CASE

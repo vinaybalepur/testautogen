@@ -174,7 +174,7 @@ export const getRunStatus = async (req: Request, res: Response): Promise<void> =
       `SELECT
          id, collection_id, ticket_key, status,
          total_tests, passed, failed, skipped,
-         duration_ms, run_at, report_path,
+         duration_ms, run_at, report_path, report_json,
          CASE
            WHEN report_path IS NOT NULL THEN true
            ELSE false
@@ -196,15 +196,25 @@ export const getRunStatus = async (req: Request, res: Response): Promise<void> =
 
     const isComplete = ['passed', 'failed', 'error', 'timeout'].includes(run.status);
 
+    // Extract failures from report_json
+    const failures = (run.report_json?.failures || []).map((f: any) => ({
+      testName:      f.source?.name    || 'Unknown',
+      testAssertion: f.error?.test     || '',
+      message:       f.error?.message  || ''
+    }));
+    
+    const { report_json, ...runWithoutJson } = run;
+
     res.json({
       run: {
-        ...run,
+        ...runWithoutJson,
         passRate,
         isComplete,
         durationSeconds: run.duration_ms
           ? (run.duration_ms / 1000).toFixed(2)
           : null
-      }
+      },
+      failures
     });
 
   } catch (err) {
