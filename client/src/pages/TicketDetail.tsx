@@ -108,6 +108,7 @@ const TicketDetail: React.FC = () => {
   const [runMsg, setRunMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [runFailures, setRunFailures] = useState<Record<number, any[]>>({});
   const [expandedRunId, setExpandedRunId] = useState<number | null>(null);
+  const [activeRunId, setActiveRunId] = useState<number | null>(null);
 
   // Defects tab
   const [defects, setDefects] = useState<any[]>([]);
@@ -115,47 +116,48 @@ const TicketDetail: React.FC = () => {
 
 
   useEffect(() => {
-  if (!ticketKey) return;
-  fetchTicket();
-  fetchAIConfigs();
-  fetchTestCases();
-}, [ticketKey]);
+    if (!ticketKey) return;
+    fetchTicket();
+    fetchAIConfigs();
+    fetchTestCases();
+  }, [ticketKey]);
 
-useEffect(() => {
-  if (activeTab === 'postman') {
-    fetchRegistryAPIs();
-    fetchCollection();
-  }
-  if (activeTab === 'runs') {
-    fetchRuns();
-    fetchDefects();   // ← needed so we know which failures already have defects
-  }
-  if (activeTab === 'defects') {
-    fetchDefects();
-  }
-}, [activeTab]);
+  useEffect(() => {
+    if (activeTab === 'postman') {
+      fetchRegistryAPIs();
+      fetchCollection();
+    }
+    if (activeTab === 'runs') {
+      fetchRuns();
+      fetchDefects();
+      fetchCollection();
+    }
+    if (activeTab === 'defects') {
+      fetchDefects();
+    }
+  }, [activeTab]);
 
-useEffect(() => {
-  if (selectedProvider) fetchModels(selectedProvider);
-}, [selectedProvider]);
+  useEffect(() => {
+    if (selectedProvider) fetchModels(selectedProvider);
+  }, [selectedProvider]);
 
-useEffect(() => {
-  if (registryAPIs.length > 0 && activeTab === 'postman') {
-    fetchDiscovery();
-  }
-}, [registryAPIs]);
+  useEffect(() => {
+    if (registryAPIs.length > 0 && activeTab === 'postman') {
+      fetchDiscovery();
+    }
+  }, [registryAPIs]);
 
-const fetchTicket = async () => {
-  setTicketLoading(true);
-  try {
-    const { data } = await api.get(`/jira/${ticketKey}`);
-    setTicket(data.ticket);
-  } catch (err: any) {
-    setTicketError(err.response?.data?.error || 'Failed to fetch ticket');
-  } finally {
-    setTicketLoading(false);
-  }
-};
+  const fetchTicket = async () => {
+    setTicketLoading(true);
+    try {
+      const { data } = await api.get(`/jira/${ticketKey}`);
+      setTicket(data.ticket);
+    } catch (err: any) {
+      setTicketError(err.response?.data?.error || 'Failed to fetch ticket');
+    } finally {
+      setTicketLoading(false);
+    }
+  };
 
   const fetchAIConfigs = async () => {
     try {
@@ -574,10 +576,19 @@ const fetchTicket = async () => {
             clearInterval(interval);
             setRunning(false);
             fetchRuns();
-            setRunMsg({
-              type: status === 'passed' ? 'success' : 'error',
-              text: status === 'passed' ? '✅ All tests passed!' : `❌ Run ${status}`
-            });
+
+            if (status === 'passed') {
+              setRunMsg({ type: 'success', text: '✅ All tests passed!' });
+            } else if (status === 'failed') {
+              setRunMsg({
+                type: 'error',
+                text: `⚠️ Run completed with ${statusData.run.failed} failure(s) out of ${statusData.run.total_tests} tests`
+              });
+            } else if (status === 'error') {
+              setRunMsg({ type: 'error', text: '🔴 Run encountered an error' });
+            } else if (status === 'timeout') {
+              setRunMsg({ type: 'error', text: '⏱️ Run timed out' });
+            }
           }
         } catch {
           clearInterval(interval);
@@ -604,10 +615,13 @@ const fetchTicket = async () => {
   };
 
   const fetchDefects = async () => {
+
     setDefectsLoading(true);
     try {
       const { data } = await api.get(`/defects/ticket/${ticketKey}`);
+
       setDefects(data.defects || []);
+
     } catch (err) {
       console.error('Failed to fetch defects:', err);
     } finally {
@@ -616,62 +630,62 @@ const fetchTicket = async () => {
   };
 
   const fetchRunFailures = async (runId: number) => {
-  try {
-    const { data } = await api.get(`/newman/runs/${runId}`);
-    setRunFailures(prev => ({ ...prev, [runId]: data.failures || [] }));
-  } catch (err) {
-    console.error('Failed to fetch run failures:', err);
-  }
-};
+    try {
+      const { data } = await api.get(`/newman/runs/${runId}`);
+      setRunFailures(prev => ({ ...prev, [runId]: data.failures || [] }));
+    } catch (err) {
+      console.error('Failed to fetch run failures:', err);
+    }
+  };
 
-const handleToggleRunDetails = (runId: number) => {
-  if (expandedRunId === runId) {
-    setExpandedRunId(null);
-    return;
-  }
-  setExpandedRunId(runId);
-  if (!runFailures[runId]) fetchRunFailures(runId);
-};
+  const handleToggleRunDetails = (runId: number) => {
+    if (expandedRunId === runId) {
+      setExpandedRunId(null);
+      return;
+    }
+    setExpandedRunId(runId);
+    if (!runFailures[runId]) fetchRunFailures(runId);
+  };
 
-const handleCreateDefect = async (runId: number, failure: any) => {
-  const matchingTestCase = testCases.find(tc =>
-    tc.test_case.includes(failure.testName)
-  );
+  const handleCreateDefect = async (runId: number, failure: any) => {
+    const matchingTestCase = testCases.find(tc =>
+      tc.test_case.includes(failure.testName)
+    );
 
-  if (!matchingTestCase) {
-    setRunMsg({ type: 'error', text: 'Could not find matching test case' });
-    return;
-  }
+    if (!matchingTestCase) {
+      setRunMsg({ type: 'error', text: 'Could not find matching test case' });
+      return;
+    }
 
-  try {
-    const { data } = await api.post('/defects', {
-      testCaseId: matchingTestCase.id,
-      runId,
-      ticketKey,
-      summary:  failure.testAssertion,
-      expected: failure.testAssertion,
-      actual:   failure.message
-    });
+    try {
+      const { data } = await api.post('/defects', {
+        testCaseId: matchingTestCase.id,
+        runId,
+        ticketKey,
+        summary: failure.testAssertion,
+        expected: failure.testAssertion,
+        actual: failure.message
+      });
 
-    const defectKey = data.defect?.defect_jira_key || data.defectJiraKey;
+      const defectKey = data.defect?.defect_jira_key || data.defectJiraKey;
 
-    setRunMsg({
-      type: 'success',
-      text: data.message === 'Defect already exists for this test case'
-        ? `ℹ️ Defect already exists: ${defectKey}`
-        : `✅ Defect created: ${defectKey}`
-    });
+      setRunMsg({
+        type: 'success',
+        text: data.message === 'Defect already exists for this test case'
+          ? `ℹ️ Defect already exists: ${defectKey}`
+          : `✅ Defect created: ${defectKey}`
+      });
 
-    // Always update defects state — whether newly created or pre-existing
-    setDefects(prev => {
-      const exists = prev.find(d => d.id === data.defect.id);
-      return exists ? prev : [...prev, data.defect];
-    });
+      // Always update defects state — whether newly created or pre-existing
+      setDefects(prev => {
+        const exists = prev.find(d => d.id === data.defect.id);
+        return exists ? prev : [...prev, data.defect];
+      });
 
-  } catch (err: any) {
-    setRunMsg({ type: 'error', text: err.response?.data?.error || 'Failed to create defect' });
-  }
-};
+    } catch (err: any) {
+      setRunMsg({ type: 'error', text: err.response?.data?.error || 'Failed to create defect' });
+    }
+  };
 
   const statusColor: Record<string, string> = {
     draft: '#64748b',
@@ -1587,58 +1601,58 @@ const handleCreateDefect = async (runId: number, failure: any) => {
                     </div>
 
                     {/* Expandable Failures Section */}
-                   {expandedRunId === run.id && runFailures[run.id] && (
-  <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-    {runFailures[run.id].map((f: any, i: number) => {
-      const matchingTestCase = testCases.find(tc => tc.test_case.includes(f.testName));
-      const existingDefect   = matchingTestCase
-        ? defects.find(d => d.test_case_id === matchingTestCase.id)
-        : null;
-      console.log('Failure:', f.testName, 'MatchedTC:', matchingTestCase?.id, 'ExistingDefect:', existingDefect);
-      return (
-        <div key={i} style={{
-          background:   'rgba(239,68,68,0.05)',
-          border:       '1px solid rgba(239,68,68,0.15)',
-          borderRadius: 8,
-          padding:      '10px 14px',
-          marginBottom: 8,
-          display:      'flex',
-          alignItems:   'center',
-          gap:          10
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: '0.85em', color: 'var(--text-primary)' }}>
-              {f.testName}
-            </div>
-            <div style={{ fontSize: '0.78em', color: '#ef4444', marginTop: 2 }}>
-              {f.message}
-            </div>
-          </div>
-          {existingDefect ? (
-            <span style={{
-              fontSize:     '0.75em',
-              padding:      '4px 10px',
-              borderRadius: 12,
-              background:   'rgba(99,102,241,0.1)',
-              color:        '#6366f1',
-              fontWeight:   500,
-              whiteSpace:   'nowrap'
-            }}>
-              🔗 {existingDefect.defect_jira_key}
-            </span>
-          ) : (
-            <button
-              onClick={() => handleCreateDefect(run.id, f)}
-              className="btn btn-danger btn-sm"
-            >
-              🐛 Create Defect
-            </button>
-          )}
-        </div>
-      );
-    })}
-  </div>
-)}
+                    {expandedRunId === run.id && runFailures[run.id] && (
+                      <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                        {runFailures[run.id].map((f: any, i: number) => {
+                          const matchingTestCase = testCases.find(tc => tc.test_case.includes(f.testName));
+                          const existingDefect = matchingTestCase
+                            ? defects.find(d => d.test_case_id === matchingTestCase.id)
+                            : null;
+                          console.log('Failure:', f.testName, 'MatchedTC:', matchingTestCase?.id, 'ExistingDefect:', existingDefect);
+                          return (
+                            <div key={i} style={{
+                              background: 'rgba(239,68,68,0.05)',
+                              border: '1px solid rgba(239,68,68,0.15)',
+                              borderRadius: 8,
+                              padding: '10px 14px',
+                              marginBottom: 8,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10
+                            }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600, fontSize: '0.85em', color: 'var(--text-primary)' }}>
+                                  {f.testName}
+                                </div>
+                                <div style={{ fontSize: '0.78em', color: '#ef4444', marginTop: 2 }}>
+                                  {f.message}
+                                </div>
+                              </div>
+                              {existingDefect ? (
+                                <span style={{
+                                  fontSize: '0.75em',
+                                  padding: '4px 10px',
+                                  borderRadius: 12,
+                                  background: 'rgba(99,102,241,0.1)',
+                                  color: '#6366f1',
+                                  fontWeight: 500,
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  🔗 {existingDefect.defect_jira_key}
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleCreateDefect(run.id, f)}
+                                  className="btn btn-danger btn-sm"
+                                >
+                                  🐛 Create Defect
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
