@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import TicketDetail from './pages/TicketDetail';
 import './styles/globals.css';
+import TokenDashboard from './pages/TokenDashboard';
 
 // Redirect to /login if not authenticated
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -37,6 +38,7 @@ const AppRoutes: React.FC = () => (
     <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
     <Route path="/tickets/:ticketKey" element={<PrivateRoute><TicketDetail /></PrivateRoute>} />
     <Route path="*"         element={<Navigate to="/" replace />} />
+    <Route path="/tokens" element={<PrivateRoute><TokenDashboard /></PrivateRoute>} />
   </Routes>
 );
 

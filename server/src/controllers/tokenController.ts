@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import pool                   from '../config/db';
+import pool from '../config/db';
 
 // ── GET OWN TOKEN USAGE ────────────────────────────────
 export const getMyTokenUsage = async (req: Request, res: Response): Promise<void> => {
@@ -82,13 +82,13 @@ export const getMyTokenUsage = async (req: Request, res: Response): Promise<void
     );
 
     res.json({
-      period:         period || 'lifetime',
-      lifetimeTotal:  parseInt(lifetimeResult.rows[0].lifetime_total),
-      periodTotal:    parseInt(periodResult.rows[0].period_total),
-      byProvider:     byProvider.rows,
-      byModel:        byModel.rows,
-      byAction:       byAction.rows,
-      dailyTrend:     dailyTrend.rows
+      period: period || 'lifetime',
+      lifetimeTotal: parseInt(lifetimeResult.rows[0].lifetime_total),
+      periodTotal: parseInt(periodResult.rows[0].period_total),
+      byProvider: byProvider.rows,
+      byModel: byModel.rows,
+      byAction: byAction.rows,
+      dailyTrend: dailyTrend.rows
     });
 
   } catch (err) {
@@ -125,63 +125,63 @@ export const getAllUsersTokenUsage = async (req: Request, res: Response): Promis
 
     // Overall total
     const overallTotal = await pool.query(
-      `SELECT COALESCE(SUM(tokens_consumed), 0) AS grand_total
-       FROM token_usage
-       WHERE 1=1 ${dateFilter}`,
+      `SELECT COALESCE(SUM(tu.tokens_consumed), 0) AS grand_total
+   FROM token_usage tu
+   WHERE 1=1 ${dateFilter}`,
       []
     );
 
     // Breakdown by provider across all users
     const byProvider = await pool.query(
       `SELECT
-         provider,
-         SUM(tokens_consumed) AS total_tokens,
-         COUNT(*)             AS total_calls,
-         COUNT(DISTINCT user_id) AS unique_users
-       FROM token_usage
-       WHERE 1=1 ${dateFilter}
-       GROUP BY provider
-       ORDER BY total_tokens DESC`,
+     provider,
+     SUM(tokens_consumed) AS total_tokens,
+     COUNT(*)             AS total_calls,
+     COUNT(DISTINCT user_id) AS unique_users
+   FROM token_usage tu
+   WHERE 1=1 ${dateFilter}
+   GROUP BY provider
+   ORDER BY total_tokens DESC`,
       []
     );
 
     // Breakdown by model across all users
     const byModel = await pool.query(
       `SELECT
-         provider,
-         model_family,
-         model_version,
-         SUM(tokens_consumed)    AS total_tokens,
-         COUNT(*)                AS total_calls,
-         COUNT(DISTINCT user_id) AS unique_users
-       FROM token_usage
-       WHERE 1=1 ${dateFilter}
-       GROUP BY provider, model_family, model_version
-       ORDER BY total_tokens DESC`,
+     provider,
+     model_family,
+     model_version,
+     SUM(tokens_consumed)    AS total_tokens,
+     COUNT(*)                AS total_calls,
+     COUNT(DISTINCT user_id) AS unique_users
+   FROM token_usage tu
+   WHERE 1=1 ${dateFilter}
+   GROUP BY provider, model_family, model_version
+   ORDER BY total_tokens DESC`,
       []
     );
 
     // Breakdown by action across all users
     const byAction = await pool.query(
       `SELECT
-         action,
-         SUM(tokens_consumed)    AS total_tokens,
-         COUNT(*)                AS total_calls,
-         COUNT(DISTINCT user_id) AS unique_users
-       FROM token_usage
-       WHERE 1=1 ${dateFilter}
-       GROUP BY action
-       ORDER BY total_tokens DESC`,
+     action,
+     SUM(tokens_consumed)    AS total_tokens,
+     COUNT(*)                AS total_calls,
+     COUNT(DISTINCT user_id) AS unique_users
+   FROM token_usage tu
+   WHERE 1=1 ${dateFilter}
+   GROUP BY action
+   ORDER BY total_tokens DESC`,
       []
     );
 
     res.json({
-      period:      period || 'lifetime',
-      grandTotal:  parseInt(overallTotal.rows[0].grand_total),
-      perUser:     perUser.rows,
-      byProvider:  byProvider.rows,
-      byModel:     byModel.rows,
-      byAction:    byAction.rows
+      period: period || 'lifetime',
+      grandTotal: parseInt(overallTotal.rows[0].grand_total),
+      perUser: perUser.rows,
+      byProvider: byProvider.rows,
+      byModel: byModel.rows,
+      byAction: byAction.rows
     });
 
   } catch (err) {
