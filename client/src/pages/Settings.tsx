@@ -173,14 +173,22 @@ const Settings: React.FC = () => {
       {/* Header */}
       <header className="app-header">
         <div className="header-logo">
-          <svg viewBox="0 0 48 48" width="22" height="22">
-            <circle cx="24" cy="24" r="24" fill="#5514B4" />
-            <path d="M14 14h8c3.3 0 6 2.7 6 6 0 2-1 3.7-2.5 4.8 2.3 1 3.5 3 3.5 5.2 0 3.3-2.7 6-6 6H14V14zm4 3.5v5h3.5c1.4 0 2.5-1.1 2.5-2.5s-1.1-2.5-2.5-2.5H18zm0 8.5v5.5h4.5c1.5 0 2.75-1.2 2.75-2.75S24 22 22.5 22H18z" fill="white" />
-            <path d="M30 16h6v2.5h-6V16zm0 5h6v2.5h-6V21zm0 5h6v2.5h-6V26z" fill="white" opacity="0.7" />
+          <svg viewBox="0 0 48 48" width="60" height="60">
+            <circle cx="24" cy="24" r="24" fill="#3ea829" />
+            <g opacity="0.35" transform="translate(24,24) rotate(45)">
+              <path d="M0 -13.8 Q3.9 -7.8 3.9 1.7 L-3.9 1.7 Q-3.9 -7.8 0 -13.8 Z" fill="#1a1a1a" />
+              <path d="M-3.9 -1.7 L-8.2 3.5 L-3.9 3.5 Z" fill="#1a1a1a" />
+              <path d="M3.9 -1.7 L8.2 3.5 L3.9 3.5 Z" fill="#1a1a1a" />
+              <circle cx="0" cy="-6" r="1.7" fill="#1E3A8A" />
+              <path d="M-2.6 1.7 L-3.9 8.6 L-1.3 5.2 Z" fill="#1a1a1a" />
+              <path d="M2.6 1.7 L3.9 8.6 L1.3 5.2 Z" fill="#1a1a1a" />
+            </g>
+            <text x="20.5" y="31" textAnchor="end" fontFamily="sans-serif" fontWeight="700" fontSize="20" fill="#1a1a1a">T</text>
+            <text x="20.5" y="32" textAnchor="start" fontFamily="sans-serif" fontWeight="700" fontSize="18" fill="#1a1a1a">s</text>
           </svg>
         </div>
         <div className="header-title" style={{ flex: 1 }}>
-          <h1>TestAutoGen</h1>
+          <h1>TestSage</h1>
           <p>AI-powered Test Automation Platform</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -370,7 +378,7 @@ const Settings: React.FC = () => {
 
       </div>
 
-      <footer className="app-footer">© TestAutoGen Platform</footer>
+      <footer className="app-footer">© TestSage Platform</footer>
 
       {/* Confirm Replace Modal */}
       {confirmModal && (

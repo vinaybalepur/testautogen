@@ -43,14 +43,12 @@ body {
 }
 
 .header-logo {
-  width: 40px; height: 40px;
-  background:    linear-gradient(135deg, #6366f1, #8b5cf6);
-  border-radius: 10px;
-  display:       flex;
-  align-items:   center;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  animation:     pulse 2s infinite;
-  flex-shrink:   0;
+  flex-shrink: 0;
 }
 
 @keyframes pulse {

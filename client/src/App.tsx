@@ -8,6 +8,7 @@ import Settings from './pages/Settings';
 import TicketDetail from './pages/TicketDetail';
 import './styles/globals.css';
 import TokenDashboard from './pages/TokenDashboard';
+import AdminPanel from './pages/AdminPanel';
 
 // Redirect to /login if not authenticated
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -39,6 +40,7 @@ const AppRoutes: React.FC = () => (
     <Route path="/tickets/:ticketKey" element={<PrivateRoute><TicketDetail /></PrivateRoute>} />
     <Route path="*"         element={<Navigate to="/" replace />} />
     <Route path="/tokens" element={<PrivateRoute><TokenDashboard /></PrivateRoute>} />
+    <Route path="/admin"  element={<PrivateRoute><AdminPanel /></PrivateRoute>} />
   </Routes>
 );
 

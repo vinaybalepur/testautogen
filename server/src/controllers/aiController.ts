@@ -20,7 +20,7 @@ export const generateTestCases = async (req: Request, res: Response): Promise<vo
     await pool.query(
       `DELETE FROM test_cases
        WHERE jira_id = $1`,
-      [ticketKey, req.userId]
+      [ticketKey]
     );
 
     // Reset sequence if no test cases remain
