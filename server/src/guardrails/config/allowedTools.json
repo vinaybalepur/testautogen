@@ -1,0 +1,32 @@
+{
+  "allowed": [
+    "RequirementAnalyzer",
+    "RequirementValidator",
+    "TestScenarioGenerator",
+    "TestCaseGenerator",
+    "TestDataGenerator",
+    "AutomationGenerator",
+    "TraceabilityGenerator",
+    "ReportGenerator",
+    "DashboardGenerator",
+    "APITestGenerator",
+    "UITestGenerator",
+    "DefectAnalyzer",
+    "RootCauseAnalyzer",
+    "RiskAnalyzer",
+    "CoverageAnalyzer"
+  ],
+  "blocked": [
+    "Terminal",
+    "Shell",
+    "GitPush",
+    "SSH",
+    "ProductionDatabase",
+    "Kubernetes",
+    "DockerHost",
+    "CloudConsole",
+    "FileSystem",
+    "NetworkScanner",
+    "ProcessManager"
+  ]
+}
