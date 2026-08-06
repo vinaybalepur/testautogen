@@ -1,25 +1,25 @@
 import React, { useState } from 'react';
-import { useNavigate }      from 'react-router-dom';
-import { useAuth }          from '../context/AuthContext';
-import api                  from '../services/api';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 interface JiraTicket {
-  key:       string;
-  summary:   string;
-  status:    string;
-  priority:  string;
+  key: string;
+  summary: string;
+  status: string;
+  priority: string;
   issueType: string;
-  reporter:  string;
-  assignee:  string | null;
+  reporter: string;
+  assignee: string | null;
 }
 
 const Dashboard: React.FC = () => {
-  const { user, logout }              = useAuth();
-  const navigate                       = useNavigate();
-  const [ticketKey, setTicketKey]      = useState('');
-  const [ticket, setTicket]            = useState<JiraTicket | null>(null);
-  const [loading, setLoading]          = useState(false);
-  const [error, setError]              = useState('');
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [ticketKey, setTicketKey] = useState('');
+  const [ticket, setTicket] = useState<JiraTicket | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogout = async () => {
     await logout();
@@ -66,11 +66,11 @@ const Dashboard: React.FC = () => {
   };
 
   const priorityColor: Record<string, string> = {
-    High:    '#ef4444',
-    Medium:  '#f59e0b',
-    Low:     '#10b981',
+    High: '#ef4444',
+    Medium: '#f59e0b',
+    Low: '#10b981',
     Highest: '#dc2626',
-    Lowest:  '#6366f1'
+    Lowest: '#6366f1'
   };
 
   return (
@@ -79,14 +79,22 @@ const Dashboard: React.FC = () => {
       {/* Header */}
       <header className="app-header">
         <div className="header-logo">
-          <svg viewBox="0 0 48 48" width="22" height="22">
-            <circle cx="24" cy="24" r="24" fill="#5514B4"/>
-            <path d="M14 14h8c3.3 0 6 2.7 6 6 0 2-1 3.7-2.5 4.8 2.3 1 3.5 3 3.5 5.2 0 3.3-2.7 6-6 6H14V14zm4 3.5v5h3.5c1.4 0 2.5-1.1 2.5-2.5s-1.1-2.5-2.5-2.5H18zm0 8.5v5.5h4.5c1.5 0 2.75-1.2 2.75-2.75S24 22 22.5 22H18z" fill="white"/>
-            <path d="M30 16h6v2.5h-6V16zm0 5h6v2.5h-6V21zm0 5h6v2.5h-6V26z" fill="white" opacity="0.7"/>
+          <svg viewBox="0 0 48 48" width="60" height="60">
+            <circle cx="24" cy="24" r="24" fill="#3ea829" />
+            <g opacity="0.35" transform="translate(24,24) rotate(45)">
+              <path d="M0 -13.8 Q3.9 -7.8 3.9 1.7 L-3.9 1.7 Q-3.9 -7.8 0 -13.8 Z" fill="#1a1a1a" />
+              <path d="M-3.9 -1.7 L-8.2 3.5 L-3.9 3.5 Z" fill="#1a1a1a" />
+              <path d="M3.9 -1.7 L8.2 3.5 L3.9 3.5 Z" fill="#1a1a1a" />
+              <circle cx="0" cy="-6" r="1.7" fill="#1E3A8A" />
+              <path d="M-2.6 1.7 L-3.9 8.6 L-1.3 5.2 Z" fill="#1a1a1a" />
+              <path d="M2.6 1.7 L3.9 8.6 L1.3 5.2 Z" fill="#1a1a1a" />
+            </g>
+            <text x="20.5" y="31" textAnchor="end" fontFamily="sans-serif" fontWeight="700" fontSize="20" fill="#1a1a1a">T</text>
+            <text x="20.5" y="32" textAnchor="start" fontFamily="sans-serif" fontWeight="700" fontSize="18" fill="#1a1a1a">s</text>
           </svg>
         </div>
         <div className="header-title" style={{ flex: 1 }}>
-          <h1>TestAutoGen</h1>
+          <h1>TestSage</h1>
           <p>AI-powered Test Automation Platform</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -117,13 +125,13 @@ const Dashboard: React.FC = () => {
         <div style={{ marginBottom: 36, textAlign: 'center' }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%',
-            background:     'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            display:        'flex',
-            alignItems:     'center',
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
-            fontSize:       '1.8em',
-            margin:         '0 auto 16px',
-            boxShadow:      '0 0 24px rgba(99,102,241,0.2)'
+            fontSize: '1.8em',
+            margin: '0 auto 16px',
+            boxShadow: '0 0 24px rgba(99,102,241,0.2)'
           }}>
             🚀
           </div>
@@ -178,13 +186,13 @@ const Dashboard: React.FC = () => {
                 <div className="card-subtitle">{ticket.issueType}</div>
               </div>
               <span style={{
-                marginLeft:   'auto',
-                fontSize:     '0.78em',
-                padding:      '3px 10px',
+                marginLeft: 'auto',
+                fontSize: '0.78em',
+                padding: '3px 10px',
                 borderRadius: 20,
-                background:   'rgba(99,102,241,0.1)',
-                color:        '#6366f1',
-                fontWeight:   500
+                background: 'rgba(99,102,241,0.1)',
+                color: '#6366f1',
+                fontWeight: 500
               }}>
                 {ticket.status}
               </span>
@@ -192,13 +200,13 @@ const Dashboard: React.FC = () => {
 
             {/* Summary */}
             <div style={{
-              background:    'var(--bg-primary)',
-              borderRadius:  10,
-              padding:       14,
-              marginBottom:  20,
-              fontSize:      '0.95em',
-              color:         'var(--text-primary)',
-              fontWeight:    500
+              background: 'var(--bg-primary)',
+              borderRadius: 10,
+              padding: 14,
+              marginBottom: 20,
+              fontSize: '0.95em',
+              color: 'var(--text-primary)',
+              fontWeight: 500
             }}>
               {ticket.summary}
             </div>
@@ -207,22 +215,22 @@ const Dashboard: React.FC = () => {
             <div className="grid-2" style={{ marginBottom: 24 }}>
               {[
                 { label: 'Priority', value: ticket.priority, color: priorityColor[ticket.priority] },
-                { label: 'Reporter', value: ticket.reporter,  color: undefined },
+                { label: 'Reporter', value: ticket.reporter, color: undefined },
                 { label: 'Assignee', value: ticket.assignee || 'Unassigned', color: undefined },
-                { label: 'Type',     value: ticket.issueType, color: undefined }
+                { label: 'Type', value: ticket.issueType, color: undefined }
               ].map(item => (
                 <div key={item.label} style={{
-                  background:   'var(--bg-primary)',
+                  background: 'var(--bg-primary)',
                   borderRadius: 8,
-                  padding:      '10px 14px'
+                  padding: '10px 14px'
                 }}>
                   <div style={{ fontSize: '0.72em', color: 'var(--text-secondary)', marginBottom: 4 }}>
                     {item.label}
                   </div>
                   <div style={{
-                    fontSize:   '0.85em',
+                    fontSize: '0.85em',
                     fontWeight: 600,
-                    color:      item.color || 'var(--text-primary)'
+                    color: item.color || 'var(--text-primary)'
                   }}>
                     {item.value}
                   </div>
@@ -252,7 +260,7 @@ const Dashboard: React.FC = () => {
         )}
       </div>
 
-      <footer className="app-footer">© TestAutoGen Platform</footer>
+      <footer className="app-footer">© TestSage Platform</footer>
     </div>
   );
 };
