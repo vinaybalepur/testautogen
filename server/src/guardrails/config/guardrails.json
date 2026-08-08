@@ -1,0 +1,61 @@
+{
+  "version": "1.0.0",
+  "enabled": true,
+
+  "input": {
+    "promptInjection": { "enabled": true, "action": "block" },
+    "jailbreak":       { "enabled": true, "action": "block" },
+    "toxicity":        { "enabled": true, "action": "block" },
+    "pii":             { "enabled": true, "action": "mask"  },
+    "secrets":         { "enabled": true, "action": "mask"  },
+    "sqlInjection":    { "enabled": true, "action": "block" },
+    "xss":             { "enabled": true, "action": "block" },
+    "commandInjection":{ "enabled": true, "action": "block" },
+    "fileValidation":  { "enabled": true, "action": "block" },
+    "tokenLimit":      { "enabled": true, "maxTokens": 16000, "maxCharacters": 50000 },
+    "languageValidator":{ "enabled": true, "allowedLanguages": ["en"], "action": "warn" }
+  },
+
+  "output": {
+    "piiMasker":           { "enabled": true },
+    "secretMasker":        { "enabled": true },
+    "hallucinationGuard":  { "enabled": true, "minConfidence": 0.4 },
+    "jsonValidator":       { "enabled": true, "maxRetries": 2 },
+    "responseValidator":   { "enabled": true },
+    "reportValidator":     { "enabled": true },
+    "requirementValidator":{ "enabled": true },
+    "testCaseValidator":   { "enabled": true }
+  },
+
+  "policies": {
+    "allowProductionExecution":    false,
+    "allowShellExecution":         false,
+    "allowDatabaseModification":   false,
+    "allowDeleteOperations":       false,
+    "allowExternalAPI":            true,
+    "maxTokens":                   16000,
+    "maxUploadSizeMB":             20,
+    "maxUploadPages":              500,
+    "requireHumanApprovalFor":     ["publishReport", "createJiraTicket", "executeProductionTests", "deleteArtifacts"],
+    "retryAttempts":               2
+  },
+
+  "rateLimit": {
+    "requestsPerHour":    100,
+    "concurrentRequests": 10,
+    "windowMs":           3600000
+  },
+
+  "monitoring": {
+    "auditLog":     { "enabled": true },
+    "securityLog":  { "enabled": true },
+    "metrics":      { "enabled": true }
+  },
+
+  "file": {
+    "allowedExtensions": [".pdf", ".docx", ".txt", ".csv", ".xlsx", ".json"],
+    "blockedExtensions": [".exe", ".dll", ".bat", ".sh", ".apk", ".iso", ".dmg"],
+    "maxSizeMB": 20,
+    "maxPages":  500
+  }
+}
