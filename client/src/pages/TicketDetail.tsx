@@ -5,80 +5,116 @@ import api from '../services/api';
 
 // ── Types ──────────────────────────────────────────────
 interface JiraTicket {
-  key:         string;
-  summary:     string;
-  status:      string;
-  priority:    string;
-  issueType:   string;
-  reporter:    string;
-  assignee:    string | null;
+  key: string;
+  summary: string;
+  status: string;
+  priority: string;
+  issueType: string;
+  reporter: string;
+  assignee: string | null;
   description: string | null;
 }
 
 interface AIConfig {
-  provider:  string;
+  provider: string;
   is_active: boolean;
 }
 
 interface AIModel {
-  model_id:   string;
+  model_id: string;
   model_name: string;
 }
 
 interface TestCase {
-  id:               number;
-  jira_id:          string;
-  test_case:        string;
-  status:           string;
-  defect_jira_id:   string | null;
+  id: number;
+  jira_id: string;
+  test_case: string;
+  status: string;
+  defect_jira_id: string | null;
   jira_subtask_key: string | null;
-  reviewed_by:      number | null;
-  created_at:       string;
-  updated_at:       string;
+  reviewed_by: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 type TabType = 'details' | 'generate' | 'testcases' | 'postman' | 'runs' | 'defects';
 
 const TABS: { id: TabType; label: string; icon: string }[] = [
-  { id: 'details',   label: 'Ticket Details', icon: '📋' },
-  { id: 'testcases', label: 'Test Cases',      icon: '✅' },
-  { id: 'generate',  label: 'Generate',        icon: '🤖' },
-  { id: 'postman',   label: 'Postman',         icon: '📮' },
-  { id: 'runs',      label: 'Runs',            icon: '🏃' },
-  { id: 'defects',   label: 'Defects',         icon: '🐛' },
+  { id: 'details', label: 'Ticket Details', icon: '📋' },
+  { id: 'generate', label: 'Generate', icon: '🤖' },
+  { id: 'testcases', label: 'Test Cases', icon: '✅' },
+  { id: 'postman', label: 'Postman', icon: '📮' },
+  { id: 'runs', label: 'Runs', icon: '🏃' },
+  { id: 'defects', label: 'Defects', icon: '🐛' },
 ];
 
 const TicketDetail: React.FC = () => {
-  const { ticketKey }          = useParams<{ ticketKey: string }>();
-  const [searchParams]         = useSearchParams();
-  const navigate               = useNavigate();
-  const { user, logout }       = useAuth();
+  const { ticketKey } = useParams<{ ticketKey: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const defaultTab = searchParams.get('action') === 'generate' ? 'generate' : 'details';
   const [activeTab, setActiveTab] = useState<TabType>(defaultTab as TabType);
 
   // Ticket
-  const [ticket, setTicket]           = useState<JiraTicket | null>(null);
+  const [ticket, setTicket] = useState<JiraTicket | null>(null);
   const [ticketLoading, setTicketLoading] = useState(true);
   const [ticketError, setTicketError] = useState('');
 
   // Generate tab
-  const [aiConfigs, setAIConfigs]             = useState<AIConfig[]>([]);
+  const [aiConfigs, setAIConfigs] = useState<AIConfig[]>([]);
   const [selectedProvider, setSelectedProvider] = useState('');
-  const [models, setModels]                   = useState<AIModel[]>([]);
-  const [selectedModel, setSelectedModel]     = useState('');
-  const [modelsLoading, setModelsLoading]     = useState(false);
-  const [generating, setGenerating]           = useState(false);
-  const [generateMsg, setGenerateMsg]         = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [regenModal, setRegenModal]           = useState(false);
+  const [models, setModels] = useState<AIModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateMsg, setGenerateMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [regenModal, setRegenModal] = useState(false);
 
   // Test Cases tab
-  const [testCases, setTestCases]     = useState<TestCase[]>([]);
-  const [tcLoading, setTcLoading]     = useState(false);
+  const [testCases, setTestCases] = useState<TestCase[]>([]);
+  const [tcLoading, setTcLoading] = useState(false);
   const [approvingAll, setApprovingAll] = useState(false);
-  const [editingId, setEditingId]     = useState<number | null>(null);
-  const [editText, setEditText]       = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState('');
   const [deleteModal, setDeleteModal] = useState<number | null>(null);
+
+  // Upload csv file
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  //Pushing test cases to jira
+  const [pushing, setPushing] = useState(false);
+  const [pushMsg, setPushMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Postman tab
+  const [registryAPIs, setRegistryAPIs] = useState<any[]>([]);
+  const [selectedAPIs, setSelectedAPIs] = useState<any[]>([]);
+  const [baseUrl, setBaseUrl] = useState('');
+  const [postmanVars, setPostmanVars] = useState<Record<string, string>>({});
+  const [discovery, setDiscovery] = useState<any | null>(null);
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [runningDiscovery, setRunningDiscovery] = useState(false);
+  const [generatingCollection, setGeneratingCollection] = useState(false);
+  const [postmanMsg, setPostmanMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [collection, setCollection] = useState<any | null>(null);
+  const [showRegenerateWarning, setShowRegenerateWarning] = useState(false);
+
+  // Runs tab
+  const [runs, setRuns] = useState<any[]>([]);
+  const [runsLoading, setRunsLoading] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [runMsg, setRunMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [runFailures, setRunFailures] = useState<Record<number, any[]>>({});
+  const [expandedRunId, setExpandedRunId] = useState<number | null>(null);
+  const [, setActiveRunId] = useState<number | null>(null);
+
+  // Defects tab
+  const [defects, setDefects] = useState<any[]>([]);
+  const [defectsLoading, setDefectsLoading] = useState(false);
+
 
   useEffect(() => {
     if (!ticketKey) return;
@@ -88,12 +124,29 @@ const TicketDetail: React.FC = () => {
   }, [ticketKey]);
 
   useEffect(() => {
-    if (activeTab === 'testcases') fetchTestCases();
+    if (activeTab === 'postman') {
+      fetchRegistryAPIs();
+      fetchCollection();
+    }
+    if (activeTab === 'runs') {
+      fetchRuns();
+      fetchDefects();
+      fetchCollection();
+    }
+    if (activeTab === 'defects') {
+      fetchDefects();
+    }
   }, [activeTab]);
 
   useEffect(() => {
     if (selectedProvider) fetchModels(selectedProvider);
   }, [selectedProvider]);
+
+  useEffect(() => {
+    if (registryAPIs.length > 0 && activeTab === 'postman') {
+      fetchDiscovery();
+    }
+  }, [registryAPIs]);
 
   const fetchTicket = async () => {
     setTicketLoading(true);
@@ -110,7 +163,7 @@ const TicketDetail: React.FC = () => {
   const fetchAIConfigs = async () => {
     try {
       const { data } = await api.get('/ai-config');
-      const active   = data.configs.filter((c: AIConfig) => c.is_active);
+      const active = data.configs.filter((c: AIConfig) => c.is_active);
       setAIConfigs(active);
       if (active.length > 0) setSelectedProvider(active[0].provider);
     } catch (err) {
@@ -137,7 +190,7 @@ const TicketDetail: React.FC = () => {
     setTcLoading(true);
     try {
       const { data } = await api.get(`/testcases/${ticketKey}`);
-      const sorted   = data.testCases.sort((a: TestCase, b: TestCase) => a.id - b.id);
+      const sorted = data.testCases.sort((a: TestCase, b: TestCase) => a.id - b.id);
       setTestCases(sorted);
     } catch (err) {
       console.error('Failed to fetch test cases:', err);
@@ -153,8 +206,8 @@ const TicketDetail: React.FC = () => {
     try {
       const { data } = await api.post('/ai/generate', {
         ticketKey,
-        provider:    selectedProvider,
-        model:       selectedModel,
+        provider: selectedProvider,
+        model: selectedModel,
         modelFamily: selectedProvider
       });
       setGenerateMsg({
@@ -231,9 +284,9 @@ const TicketDetail: React.FC = () => {
       const response = await api.get(`/testcases/${ticketKey}/download`, {
         responseType: 'blob'
       });
-      const url  = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
-      link.href  = url;
+      link.href = url;
       link.setAttribute('download', `${ticketKey}-testcases.csv`);
       document.body.appendChild(link);
       link.click();
@@ -248,19 +301,407 @@ const TicketDetail: React.FC = () => {
     navigate('/login');
   };
 
+  // Upload CSV file
+  const handleUploadCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadMsg(null);
+
+    try {
+      const text = await file.text();
+      const { data } = await api.post(
+        `/testcases/${ticketKey}/upload`,
+        { csv: text },
+        {
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+
+      setUploadMsg({
+
+        type: 'success',
+        text: `✅ ${data.message}`,
+
+      });
+      fetchTestCases();
+    } catch (err: any) {
+      console.error('Upload error:', err.response?.data);
+      const errData = err.response?.data;
+      setUploadMsg({
+        type: 'error',
+        text: errData?.message
+          ? `${errData.error} — ${errData.message}`
+          : errData?.error || 'Failed to upload CSV'
+      });
+    } finally {
+
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+
+  };
+
+  //Pushing approved test cases to jira
+  const handlePushToJira = async () => {
+    setPushing(true);
+    setPushMsg(null);
+    try {
+      const { data } = await api.post(`/push/${ticketKey}/push`);
+      setPushMsg({
+        type: 'success',
+        text: `✅ Pushed ${data.pushed.length} new, updated ${data.updated.length} test cases to Jira`
+      });
+      fetchTestCases();
+    } catch (err: any) {
+      setPushMsg({
+        type: 'error',
+        text: err.response?.data?.error || 'Failed to push to Jira'
+      });
+    } finally {
+      setPushing(false);
+    }
+  };
+
+  //Postman tab section
+
+  const fetchRegistryAPIs = async () => {
+    try {
+      const { data } = await api.get('/registry');
+      setRegistryAPIs(data.apis);
+    } catch (err) {
+      console.error('Failed to fetch registry APIs:', err);
+    }
+  };
+
+  const fetchDiscovery = async () => {
+    setDiscoveryLoading(true);
+    try {
+      const { data } = await api.get(`/discovery/${ticketKey}/status`);
+      if (data.discovery) {
+        setDiscovery(data.discovery);
+        if (data.discovery.base_url) setBaseUrl(data.discovery.base_url);
+
+        // Start with empty vars
+        const vars: Record<string, string> = {};
+
+        // Add saved registry variables for selected APIs
+        if (data.discovery.api_ids) {
+          for (const apiId of data.discovery.api_ids) {
+            try {
+              const { data: varData } = await api.get(`/registry/${apiId}/variables`);
+              for (const v of varData.variables) {
+                vars[v.name] = v.value || '';
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+
+        // Add extracted vars from discovery (overwrite if conflict)
+        if (data.discovery.extracted_vars) {
+          for (const apiVars of data.discovery.extracted_vars) {
+            Object.assign(vars, apiVars.variables);
+          }
+        }
+
+        setPostmanVars(vars);
+
+        // Pre-select APIs
+        if (data.discovery.api_ids && registryAPIs.length > 0) {
+          const ordered = data.discovery.api_ids
+            .map((id: number) => registryAPIs.find(a => a.id === id))
+            .filter(Boolean);
+          setSelectedAPIs(ordered);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch discovery:', err);
+    } finally {
+      setDiscoveryLoading(false);
+    }
+  };
+
+  const fetchCollection = async () => {
+    try {
+      const { data } = await api.get(`/postman/${ticketKey}`);
+      if (data.collections?.length > 0) {
+        setCollection(data.collections[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch collection:', err);
+    }
+  };
+
+  const handleAddAPI = (api_entry: any) => {
+    if (selectedAPIs.find(a => a.id === api_entry.id)) return;
+    setSelectedAPIs(prev => [...prev, api_entry]);
+  };
+
+  const handleRemoveAPI = (apiId: number) => {
+    setSelectedAPIs(prev => prev.filter(a => a.id !== apiId));
+  };
+
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return;
+    const newList = [...selectedAPIs];
+    [newList[index - 1], newList[index]] = [newList[index], newList[index - 1]];
+    setSelectedAPIs(newList);
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index === selectedAPIs.length - 1) return;
+    const newList = [...selectedAPIs];
+    [newList[index], newList[index + 1]] = [newList[index + 1], newList[index]];
+    setSelectedAPIs(newList);
+  };
+
+  const handleDownloadCollection = async (collectionId: number) => {
+    try {
+      const response = await api.get(`/postman/collection/${collectionId}/download`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${ticketKey}-collection.json`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Failed to download collection:', err);
+    }
+  };
+
+  const handleRunDiscovery = async () => {
+    if (selectedAPIs.length === 0 || !baseUrl.trim()) {
+      setPostmanMsg({ type: 'error', text: 'Select APIs and enter base URL first' });
+      return;
+    }
+    setRunningDiscovery(true);
+    setPostmanMsg(null);
+    try {
+      await api.post(`/discovery/${ticketKey}/run`, {
+        apiIds: selectedAPIs.map(a => a.id),
+        baseUrl: baseUrl.trim(),
+        variables: postmanVars
+      });
+      setPostmanMsg({ type: 'success', text: '⏳ Discovery started...' });
+      // Poll for completion
+      const interval = setInterval(async () => {
+        const { data } = await api.get(`/discovery/${ticketKey}/status`);
+        if (data.discovery?.status === 'completed') {
+          clearInterval(interval);
+          setRunningDiscovery(false);
+          fetchDiscovery();
+          setPostmanMsg({ type: 'success', text: '✅ Discovery completed!' });
+        } else if (data.discovery?.status === 'failed') {
+          clearInterval(interval);
+          setRunningDiscovery(false);
+          setPostmanMsg({ type: 'error', text: `❌ Discovery failed: ${data.discovery.error}` });
+        }
+      }, 2000);
+    } catch (err: any) {
+      setRunningDiscovery(false);
+      setPostmanMsg({ type: 'error', text: err.response?.data?.error || 'Failed to run discovery' });
+    }
+  };
+
+  const handleGenerateCollection = async () => {
+
+    if (!discovery || discovery.status !== 'completed') {
+      setPostmanMsg({ type: 'error', text: 'Run discovery first' });
+      return;
+    }
+
+    if (!selectedProvider || !selectedModel) {
+      setPostmanMsg({ type: 'error', text: 'Please configure an AI provider in Settings first' });
+      return;
+    }
+
+    setGeneratingCollection(true);
+    try {
+      const { data } = await api.post('/postman/generate', {
+        ticketKey,
+        provider: selectedProvider,
+        model: selectedModel,
+        modelFamily: selectedProvider,
+        baseUrl: baseUrl.trim(),
+        username: postmanVars['auth_username'] || postmanVars['username'] || '',
+        password: postmanVars['auth_password'] || postmanVars['password'] || '',
+        variables: postmanVars,
+        apiIds: selectedAPIs.map(a => a.id),
+        forceRegenerate: true
+      });
+      setPostmanMsg({ type: 'success', text: '✅ Collection generated!' });
+      setCollection(data.collectionId);
+    } catch (err: any) {
+      setPostmanMsg({ type: 'error', text: err.response?.data?.error || 'Failed to generate collection' });
+    } finally {
+      setGeneratingCollection(false);
+    }
+  };
+
+  const fetchRuns = async () => {
+    setRunsLoading(true);
+    try {
+      const { data } = await api.get(`/newman/tickets/${ticketKey}/runs`);
+      setRuns(data.runs || []);
+    } catch (err) {
+      console.error('Failed to fetch runs:', err);
+    } finally {
+      setRunsLoading(false);
+    }
+  };
+
+  const handleRunCollection = async () => {
+    if (!collection) {
+      setRunMsg({ type: 'error', text: 'Generate a Postman collection first' });
+      return;
+    }
+    setRunning(true);
+    setRunMsg(null);
+    try {
+      const { data } = await api.post(`/newman/run/${collection.id}`);
+      setActiveRunId(data.runId);
+      setRunMsg({ type: 'success', text: '⏳ Run started...' });
+
+      // Poll for completion
+      const interval = setInterval(async () => {
+        try {
+          const { data: statusData } = await api.get(`/newman/runs/${data.runId}`);
+          const status = statusData.run?.status;
+          if (['passed', 'failed', 'error', 'timeout'].includes(status)) {
+            clearInterval(interval);
+            setRunning(false);
+            fetchRuns();
+
+            if (status === 'passed') {
+              setRunMsg({ type: 'success', text: '✅ All tests passed!' });
+            } else if (status === 'failed') {
+              setRunMsg({
+                type: 'error',
+                text: `⚠️ Run completed with ${statusData.run.failed} failure(s) out of ${statusData.run.total_tests} tests`
+              });
+            } else if (status === 'error') {
+              setRunMsg({ type: 'error', text: '🔴 Run encountered an error' });
+            } else if (status === 'timeout') {
+              setRunMsg({ type: 'error', text: '⏱️ Run timed out' });
+            }
+          }
+        } catch {
+          clearInterval(interval);
+          setRunning(false);
+        }
+      }, 3000);
+
+    } catch (err: any) {
+      setRunning(false);
+      setRunMsg({ type: 'error', text: err.response?.data?.error || 'Failed to start run' });
+    }
+  };
+
+  const handleViewReport = async (runId: number) => {
+    try {
+      const { data } = await api.get(`/newman/runs/${runId}/report`);
+      // Open report in new tab
+      const blob = new Blob([data], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch (err) {
+      console.error('Failed to fetch report:', err);
+    }
+  };
+
+  const fetchDefects = async () => {
+
+    setDefectsLoading(true);
+    try {
+      const { data } = await api.get(`/defects/ticket/${ticketKey}`);
+
+      setDefects(data.defects || []);
+
+    } catch (err) {
+      console.error('Failed to fetch defects:', err);
+    } finally {
+      setDefectsLoading(false);
+    }
+  };
+
+  const fetchRunFailures = async (runId: number) => {
+    try {
+      const { data } = await api.get(`/newman/runs/${runId}`);
+      setRunFailures(prev => ({ ...prev, [runId]: data.failures || [] }));
+    } catch (err) {
+      console.error('Failed to fetch run failures:', err);
+    }
+  };
+
+  const handleToggleRunDetails = (runId: number) => {
+    if (expandedRunId === runId) {
+      setExpandedRunId(null);
+      return;
+    }
+    setExpandedRunId(runId);
+    if (!runFailures[runId]) fetchRunFailures(runId);
+  };
+
+  const handleCreateDefect = async (runId: number, failure: any) => {
+    const matchingTestCase = testCases.find(tc =>
+      tc.test_case.includes(failure.testName)
+    );
+
+    if (!matchingTestCase) {
+      setRunMsg({ type: 'error', text: 'Could not find matching test case' });
+      return;
+    }
+
+    try {
+      const { data } = await api.post('/defects', {
+        testCaseId: matchingTestCase.id,
+        runId,
+        ticketKey,
+        summary: failure.testAssertion,
+        expected: failure.testAssertion,
+        actual: failure.message
+      });
+
+      const defectKey = data.defect?.defect_jira_key || data.defectJiraKey;
+
+      setRunMsg({
+        type: 'success',
+        text: data.message === 'Defect already exists for this test case'
+          ? `ℹ️ Defect already exists: ${defectKey}`
+          : `✅ Defect created: ${defectKey}`
+      });
+
+      // Always update defects state — whether newly created or pre-existing
+      setDefects(prev => {
+        const exists = prev.find(d => d.id === data.defect.id);
+        return exists ? prev : [...prev, data.defect];
+      });
+
+    } catch (err: any) {
+      setRunMsg({ type: 'error', text: err.response?.data?.error || 'Failed to create defect' });
+    }
+  };
+
   const statusColor: Record<string, string> = {
-    draft:    '#64748b',
+    draft: '#64748b',
     approved: '#10b981',
     rejected: '#ef4444',
-    modified: '#f59e0b'
+    modified: '#f59e0b',
+    approved_modified: '#10b981'
   };
 
   const priorityColor: Record<string, string> = {
-    High:    '#ef4444',
-    Medium:  '#f59e0b',
-    Low:     '#10b981',
+    High: '#ef4444',
+    Medium: '#f59e0b',
+    Low: '#10b981',
     Highest: '#dc2626',
-    Lowest:  '#6366f1'
+    Lowest: '#6366f1'
   };
 
   return (
@@ -269,22 +710,14 @@ const TicketDetail: React.FC = () => {
       {/* Header */}
       <header className="app-header">
         <div className="header-logo">
-          <svg viewBox="0 0 48 48" width="60" height="60">
-            <circle cx="24" cy="24" r="24" fill="#3ea829" />
-            <g opacity="0.35" transform="translate(24,24) rotate(45)">
-              <path d="M0 -13.8 Q3.9 -7.8 3.9 1.7 L-3.9 1.7 Q-3.9 -7.8 0 -13.8 Z" fill="#1a1a1a" />
-              <path d="M-3.9 -1.7 L-8.2 3.5 L-3.9 3.5 Z" fill="#1a1a1a" />
-              <path d="M3.9 -1.7 L8.2 3.5 L3.9 3.5 Z" fill="#1a1a1a" />
-              <circle cx="0" cy="-6" r="1.7" fill="#1E3A8A" />
-              <path d="M-2.6 1.7 L-3.9 8.6 L-1.3 5.2 Z" fill="#1a1a1a" />
-              <path d="M2.6 1.7 L3.9 8.6 L1.3 5.2 Z" fill="#1a1a1a" />
-            </g>
-            <text x="20.5" y="31" textAnchor="end" fontFamily="sans-serif" fontWeight="700" fontSize="20" fill="#1a1a1a">T</text>
-            <text x="20.5" y="32" textAnchor="start" fontFamily="sans-serif" fontWeight="700" fontSize="18" fill="#1a1a1a">s</text>
+          <svg viewBox="0 0 48 48" width="22" height="22">
+            <circle cx="24" cy="24" r="24" fill="#5514B4" />
+            <path d="M14 14h8c3.3 0 6 2.7 6 6 0 2-1 3.7-2.5 4.8 2.3 1 3.5 3 3.5 5.2 0 3.3-2.7 6-6 6H14V14zm4 3.5v5h3.5c1.4 0 2.5-1.1 2.5-2.5s-1.1-2.5-2.5-2.5H18zm0 8.5v5.5h4.5c1.5 0 2.75-1.2 2.75-2.75S24 22 22.5 22H18z" fill="white" />
+            <path d="M30 16h6v2.5h-6V16zm0 5h6v2.5h-6V21zm0 5h6v2.5h-6V26z" fill="white" opacity="0.7" />
           </svg>
         </div>
         <div className="header-title" style={{ flex: 1 }}>
-          <h1>TestSage</h1>
+          <h1>TestAutoGen</h1>
           <p>AI-powered Test Automation Platform</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -302,12 +735,12 @@ const TicketDetail: React.FC = () => {
 
       {/* Ticket Key Banner */}
       <div style={{
-        background:  'linear-gradient(135deg, #6366f1, #8b5cf6)',
-        padding:     '16px 32px',
-        color:       'white',
-        display:     'flex',
-        alignItems:  'center',
-        gap:         12
+        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+        padding: '16px 32px',
+        color: 'white',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12
       }}>
         <span style={{ fontSize: '1.1em', fontWeight: 700 }}>{ticketKey}</span>
         {ticket && (
@@ -320,28 +753,28 @@ const TicketDetail: React.FC = () => {
 
       {/* Tabs */}
       <div style={{
-        background:   'var(--bg-secondary)',
+        background: 'var(--bg-secondary)',
         borderBottom: '1px solid var(--border)',
-        padding:      '0 24px',
-        display:      'flex',
-        gap:          4,
-        overflowX:    'auto'
+        padding: '0 24px',
+        display: 'flex',
+        gap: 4,
+        overflowX: 'auto'
       }}>
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             style={{
-              padding:      '14px 18px',
-              border:       'none',
-              background:   'none',
-              cursor:       'pointer',
-              fontSize:     '0.875em',
-              fontWeight:   activeTab === tab.id ? 600 : 400,
-              color:        activeTab === tab.id ? '#6366f1' : 'var(--text-secondary)',
+              padding: '14px 18px',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875em',
+              fontWeight: activeTab === tab.id ? 600 : 400,
+              color: activeTab === tab.id ? '#6366f1' : 'var(--text-secondary)',
               borderBottom: activeTab === tab.id ? '2px solid #6366f1' : '2px solid transparent',
-              whiteSpace:   'nowrap',
-              transition:   'all 0.15s'
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s'
             }}
           >
             {tab.icon} {tab.label}
@@ -371,26 +804,26 @@ const TicketDetail: React.FC = () => {
                     <div className="card-subtitle">{ticket.issueType}</div>
                   </div>
                   <span style={{
-                    marginLeft:   'auto',
-                    fontSize:     '0.78em',
-                    padding:      '3px 10px',
+                    marginLeft: 'auto',
+                    fontSize: '0.78em',
+                    padding: '3px 10px',
                     borderRadius: 20,
-                    background:   'rgba(99,102,241,0.1)',
-                    color:        '#6366f1',
-                    fontWeight:   500
+                    background: 'rgba(99,102,241,0.1)',
+                    color: '#6366f1',
+                    fontWeight: 500
                   }}>
                     {ticket.status}
                   </span>
                 </div>
 
                 <div style={{
-                  background:   'var(--bg-primary)',
+                  background: 'var(--bg-primary)',
                   borderRadius: 10,
-                  padding:      14,
+                  padding: 14,
                   marginBottom: 20,
-                  fontSize:     '0.95em',
-                  color:        'var(--text-primary)',
-                  fontWeight:   500
+                  fontSize: '0.95em',
+                  color: 'var(--text-primary)',
+                  fontWeight: 500
                 }}>
                   {ticket.summary}
                 </div>
@@ -401,13 +834,13 @@ const TicketDetail: React.FC = () => {
                       DESCRIPTION
                     </div>
                     <div style={{
-                      background:   'var(--bg-primary)',
+                      background: 'var(--bg-primary)',
                       borderRadius: 10,
-                      padding:      14,
-                      fontSize:     '0.875em',
-                      color:        'var(--text-primary)',
-                      lineHeight:   1.6,
-                      whiteSpace:   'pre-wrap'
+                      padding: 14,
+                      fontSize: '0.875em',
+                      color: 'var(--text-primary)',
+                      lineHeight: 1.6,
+                      whiteSpace: 'pre-wrap'
                     }}>
                       {ticket.description}
                     </div>
@@ -416,15 +849,15 @@ const TicketDetail: React.FC = () => {
 
                 <div className="grid-2">
                   {[
-                    { label: 'Priority', value: ticket.priority,                color: priorityColor[ticket.priority] },
-                    { label: 'Reporter', value: ticket.reporter,                color: undefined },
+                    { label: 'Priority', value: ticket.priority, color: priorityColor[ticket.priority] },
+                    { label: 'Reporter', value: ticket.reporter, color: undefined },
                     { label: 'Assignee', value: ticket.assignee || 'Unassigned', color: undefined },
-                    { label: 'Type',     value: ticket.issueType,               color: undefined }
+                    { label: 'Type', value: ticket.issueType, color: undefined }
                   ].map(item => (
                     <div key={item.label} style={{
-                      background:   'var(--bg-primary)',
+                      background: 'var(--bg-primary)',
                       borderRadius: 8,
-                      padding:      '10px 14px'
+                      padding: '10px 14px'
                     }}>
                       <div style={{ fontSize: '0.72em', color: 'var(--text-secondary)', marginBottom: 4 }}>
                         {item.label}
@@ -474,8 +907,8 @@ const TicketDetail: React.FC = () => {
                         style={{ textTransform: 'capitalize' }}
                       >
                         {config.provider === 'copilot' && '🐙 '}
-                        {config.provider === 'gemini'  && '✨ '}
-                        {config.provider === 'claude'  && '🤖 '}
+                        {config.provider === 'gemini' && '✨ '}
+                        {config.provider === 'claude' && '🤖 '}
                         {config.provider}
                       </button>
                     ))}
@@ -548,6 +981,7 @@ const TicketDetail: React.FC = () => {
                 <button
                   onClick={handleApproveAll}
                   className="btn btn-success btn-sm"
+                  title="Approve"
                   disabled={approvingAll || testCases.length === 0}
                 >
                   {approvingAll ? <span className="spinner" /> : '✅'} Approve All
@@ -559,15 +993,47 @@ const TicketDetail: React.FC = () => {
                 >
                   ⬇️ Download CSV
                 </button>
+
+                {/* ← Add upload button */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="btn btn-secondary btn-sm"
+                  disabled={uploading}
+                  title="Upload modified CSV"
+                >
+                  {uploading ? <span className="spinner" /> : '⬆️'} Upload CSV
+                </button>
+
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  style={{ display: 'none' }}
+                  onChange={handleUploadCSV}
+                />
                 <button
                   onClick={() => setRegenModal(true)}
                   className="btn btn-outline btn-sm"
                 >
                   🤖 Regenerate
                 </button>
+
+                {/* Push to Jira */}
+                <button
+                  onClick={handlePushToJira}
+                  className="btn btn-primary btn-sm"
+                  disabled={pushing || testCases.filter(tc => tc.status === 'approved').length === 0}
+                  title="Push all approved test cases to Jira"
+                >
+                  {pushing ? <span className="spinner" /> : '🚀'} Push to Jira
+                </button>
               </div>
             </div>
+            {uploadMsg && <div className={`status-msg ${uploadMsg.type}`}>{uploadMsg.text}</div>}
 
+            { /* Pushing test cases to jira message */}
+            {pushMsg && <div className={`status-msg ${pushMsg.type}`} style={{ marginBottom: 12 }}>{pushMsg.text}</div>}
             {tcLoading ? (
               <div className="spinner-container">
                 <span className="spinner spinner-lg" />
@@ -596,44 +1062,76 @@ const TicketDetail: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: '0.75em', color: 'var(--text-secondary)' }}>#{tc.id}</span>
                         <span style={{
-                          fontSize:      '0.75em',
-                          padding:       '2px 8px',
-                          borderRadius:  12,
-                          background:    `${statusColor[tc.status]}18`,
-                          color:         statusColor[tc.status],
-                          fontWeight:    500,
+                          fontSize: '0.75em',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          background: `${statusColor[tc.status]}18`,
+                          color: statusColor[tc.status],
+                          fontWeight: 500,
                           textTransform: 'capitalize'
                         }}>
-                          {tc.status}
+                          {tc.status === 'approved_modified' ? 'approved' : tc.status}
                         </span>
-                        {tc.jira_subtask_key && (
-                          <span style={{ fontSize: '0.75em', color: '#6366f1' }}>
+                        {/* Show warning if approved_modified */}
+                        {tc.status === 'approved_modified' && (
+                          <span style={{
+                            fontSize: '0.75em',
+                            padding: '2px 8px',
+                            borderRadius: 12,
+                            background: 'rgba(245,158,11,0.1)',
+                            color: '#f59e0b',
+                            fontWeight: 500
+                          }}>
+                            ⚠️ Modified — not pushed
+                          </span>
+                        )}
+                        {tc.jira_subtask_key ? (
+                          <span style={{
+                            fontSize: '0.75em',
+                            padding: '2px 8px',
+                            borderRadius: 12,
+                            background: 'rgba(99,102,241,0.1)',
+                            color: '#6366f1',
+                            fontWeight: 500
+                          }}>
                             🔗 {tc.jira_subtask_key}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.75em', color: '#94a3b8' }}>
+                            ○ Not pushed
+                          </span>
+                        )}
+                        {tc.defect_jira_id && (
+                          <span style={{ fontSize: '0.75em', color: '#ef4444' }}>
+                            🐛 {tc.defect_jira_id}
                           </span>
                         )}
                       </div>
 
                       {/* Action buttons */}
                       <div style={{ display: 'flex', gap: 6 }}>
-                        {tc.status !== 'approved' && (
-                          <button onClick={() => handleApprove(tc.id)} className="btn btn-success btn-sm">
+                        {tc.status !== 'approved' && tc.status !== 'approved_modified' && (
+                          <button onClick={() => handleApprove(tc.id)} className="btn btn-success btn-sm" title="Approve">
                             ✅
                           </button>
                         )}
                         {tc.status !== 'rejected' && (
-                          <button onClick={() => handleReject(tc.id)} className="btn btn-danger btn-sm">
+                          <button onClick={() => handleReject(tc.id)} className="btn btn-danger btn-sm" title="Reject test case">
                             ❌
+
                           </button>
                         )}
                         <button
                           onClick={() => { setEditingId(tc.id); setEditText(tc.test_case); }}
                           className="btn btn-secondary btn-sm"
+                          title="Edit test case"
                         >
                           ✏️
                         </button>
                         <button
                           onClick={() => setDeleteModal(tc.id)}
                           className="btn btn-danger btn-sm"
+                          title="Delete test case"
                         >
                           🗑️
                         </button>
@@ -647,16 +1145,16 @@ const TicketDetail: React.FC = () => {
                           value={editText}
                           onChange={e => setEditText(e.target.value)}
                           style={{
-                            width:        '100%',
-                            minHeight:    120,
-                            padding:      12,
-                            border:       '1px solid var(--border)',
+                            width: '100%',
+                            minHeight: 120,
+                            padding: 12,
+                            border: '1px solid var(--border)',
                             borderRadius: 8,
-                            fontSize:     '0.85em',
-                            fontFamily:   'monospace',
-                            resize:       'vertical',
-                            background:   'var(--bg-primary)',
-                            color:        'var(--text-primary)'
+                            fontSize: '0.85em',
+                            fontFamily: 'monospace',
+                            resize: 'vertical',
+                            background: 'var(--bg-primary)',
+                            color: 'var(--text-primary)'
                           }}
                         />
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -670,12 +1168,12 @@ const TicketDetail: React.FC = () => {
                       </div>
                     ) : (
                       <pre style={{
-                        fontSize:   '0.82em',
-                        color:      'var(--text-primary)',
+                        fontSize: '0.82em',
+                        color: 'var(--text-primary)',
                         whiteSpace: 'pre-wrap',
-                        wordBreak:  'break-word',
+                        wordBreak: 'break-word',
                         lineHeight: 1.6,
-                        margin:     0,
+                        margin: 0,
                         fontFamily: 'monospace'
                       }}>
                         {tc.test_case}
@@ -690,34 +1188,552 @@ const TicketDetail: React.FC = () => {
 
         {/* ── POSTMAN TAB ── */}
         {activeTab === 'postman' && (
-          <div className="empty-state">
-            <div className="empty-state-icon">📮</div>
-            <h3>Postman Collections</h3>
-            <p>Coming soon</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {postmanMsg && (
+              <div className={`status-msg ${postmanMsg.type}`}>
+                {postmanMsg.text}
+              </div>
+            )}
+
+            {/* Section 1 — API Chain */}
+            <div className="card">
+              <div className="card-header">
+                <div className="card-icon blue">🔗</div>
+                <div>
+                  <div className="card-title">API Chain</div>
+                  <div className="card-subtitle">Select and order APIs for this collection</div>
+                </div>
+              </div>
+
+              {/* Base URL */}
+              <div className="form-group">
+                <label className="form-label">Base URL *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="https://api.example.com"
+                  value={baseUrl}
+                  onChange={e => setBaseUrl(e.target.value)}
+                />
+              </div>
+
+              {/* API Selector */}
+              {user?.role === 'admin' && (
+                <div className="form-group">
+                  <label className="form-label">Add API</label>
+                  <select
+                    className="form-select"
+                    onChange={e => {
+                      const api_entry = registryAPIs.find(a => a.id === parseInt(e.target.value));
+                      if (api_entry) handleAddAPI(api_entry);
+                      e.target.value = '';
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select API to add...</option>
+                    {registryAPIs
+                      .filter(a => !selectedAPIs.find(s => s.id === a.id))
+                      .map(a => (
+                        <option key={a.id} value={a.id}>
+                          {a.method} {a.path} — {a.name}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+              )}
+
+              {/* Selected APIs List */}
+              {selectedAPIs.length === 0 ? (
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85em', padding: '12px 0' }}>
+                  No APIs selected yet. Add APIs from the registry above.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {selectedAPIs.map((a, index) => (
+                    <div key={a.id} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      background: 'var(--bg-primary)',
+                      borderRadius: 8,
+                      padding: '10px 14px'
+                    }}>
+                      <span style={{
+                        fontSize: '0.75em',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        minWidth: 20
+                      }}>
+                        {index + 1}
+                      </span>
+                      <span style={{
+                        fontSize: '0.72em',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: a.method === 'GET' ? 'rgba(16,185,129,0.1)' : 'rgba(99,102,241,0.1)',
+                        color: a.method === 'GET' ? '#10b981' : '#6366f1'
+                      }}>
+                        {a.method}
+                      </span>
+                      <span style={{ fontSize: '0.85em', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                        {a.path}
+                      </span>
+                      <span style={{ fontWeight: 600, fontSize: '0.85em', color: 'var(--text-primary)' }}>
+                        {a.name}
+                      </span>
+                      {user?.role === 'admin' && (
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                          <button
+                            onClick={() => handleMoveUp(index)}
+                            disabled={index === 0}
+                            className="btn btn-secondary btn-sm"
+                            title="Move up"
+                            style={{ padding: '2px 8px' }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => handleMoveDown(index)}
+                            disabled={index === selectedAPIs.length - 1}
+                            className="btn btn-secondary btn-sm"
+                            title="Move down"
+                            style={{ padding: '2px 8px' }}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            onClick={() => handleRemoveAPI(a.id)}
+                            className="btn btn-danger btn-sm"
+                            title="Remove"
+                            style={{ padding: '2px 8px' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Run Discovery Button — Admin only */}
+              {user?.role === 'admin' && (
+                <button
+                  onClick={handleRunDiscovery}
+                  className="btn btn-primary"
+                  disabled={runningDiscovery || selectedAPIs.length === 0 || !baseUrl.trim()}
+                  style={{ marginTop: 16 }}
+                >
+                  {runningDiscovery ? <><span className="spinner" /> Running Discovery...</> : '🔍 Run Discovery'}
+                </button>
+              )}
+            </div>
+
+            {/* Section 2 — Discovery Status */}
+            {discoveryLoading ? (
+              <div className="spinner-container">
+                <span className="spinner" />
+                <span>Loading discovery status...</span>
+              </div>
+            ) : discovery ? (
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-icon green">🔍</div>
+                  <div>
+                    <div className="card-title">Discovery Results</div>
+                    <div className="card-subtitle">
+                      {discovery.status === 'completed'
+                        ? `Completed on ${new Date(discovery.completed_at).toLocaleDateString()} by ${discovery.run_by_name}`
+                        : `Status: ${discovery.status}`
+                      }
+                    </div>
+                  </div>
+                  <span className={`badge ${discovery.status === 'completed' ? 'badge-approved' : 'badge-draft'}`}
+                    style={{ marginLeft: 'auto' }}>
+                    {discovery.status === 'completed' ? '✅ Completed' : discovery.status}
+                  </span>
+                </div>
+
+                {/* API Run Results */}
+                {discovery.api_chain && discovery.api_chain.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {discovery.api_chain.map((chain: any, index: number) => (
+                      <div key={chain.apiId} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        background: 'var(--bg-primary)',
+                        borderRadius: 8,
+                        padding: '10px 14px'
+                      }}>
+                        <span style={{ fontSize: '0.75em', color: 'var(--text-secondary)', minWidth: 20 }}>
+                          {index + 1}
+                        </span>
+                        <span style={{ fontSize: '0.85em' }}>
+                          {chain.error ? '❌' : '✅'}
+                        </span>
+                        <span style={{ fontWeight: 600, fontSize: '0.85em', color: 'var(--text-primary)' }}>
+                          {chain.name}
+                        </span>
+                        <span style={{ fontSize: '0.82em', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                          {chain.method} {chain.path}
+                        </span>
+                        {chain.extracts && chain.extracts.length > 0 && !chain.error && (
+                          <span style={{ fontSize: '0.75em', color: '#10b981', marginLeft: 'auto' }}>
+                            extracts: {chain.extracts.join(', ')}
+                          </span>
+                        )}
+                        {chain.error && (
+                          <span style={{ fontSize: '0.75em', color: '#ef4444', marginLeft: 'auto' }}>
+                            {chain.error}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {/* Section 3 — Variables */}
+            {discovery?.status === 'completed' && (
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-icon purple">⚙️</div>
+                  <div>
+                    <div className="card-title">Variables</div>
+                    <div className="card-subtitle">Pre-filled from discovery — update if needed</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Base URL always shown */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.85em', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                      base_url
+                    </span>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={baseUrl}
+                      onChange={e => setBaseUrl(e.target.value)}
+                      style={{ fontSize: '0.82em', padding: '6px 10px' }}
+                    />
+                  </div>
+
+                  {/* Extracted variables */}
+                  {Object.entries(postmanVars)
+                    .filter(([key]) => !['token', 'auth_token'].includes(key))  // hide auto tokens
+                    .map(([key, value]) => (
+                      <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85em', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                          {key}
+                        </span>
+                        <input
+                          type={key.toLowerCase().includes('password') ? 'password' : 'text'}
+                          className="form-input"
+                          value={value}
+                          onChange={e => setPostmanVars(prev => ({ ...prev, [key]: e.target.value }))}
+                          style={{ fontSize: '0.82em', padding: '6px 10px' }}
+                        />
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
+
+            {/* Section 4 — Generate */}
+            {discovery?.status === 'completed' && (
+              <div>
+                {/* Provider info */}
+                <div style={{
+                  background: 'rgba(99,102,241,0.06)',
+                  border: '1px solid rgba(99,102,241,0.15)',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  marginBottom: 12,
+                  fontSize: '0.82em',
+                  color: 'var(--text-secondary)'
+                }}>
+                  🤖 Will use <strong>{selectedProvider || 'No provider configured'}</strong>
+                  {selectedModel && <> · <strong>{selectedModel}</strong></>} to generate collection
+                </div>
+
+                <button
+                  onClick={() => collection ? setShowRegenerateWarning(true) : handleGenerateCollection()}
+                  className="btn btn-primary btn-full btn-lg"
+                  disabled={generatingCollection || !selectedProvider}
+                >
+                  {generatingCollection
+                    ? <><span className="spinner" /> Generating...</>
+                    : collection ? '📮 Regenerate Postman Collection' : '📮 Generate Postman Collection'
+                  }
+                </button>
+              </div>
+            )}
+            {collection && (
+              <div style={{
+                display: 'flex',
+                gap: 10,
+                marginTop: 10
+              }}>
+                <button
+                  onClick={() => handleDownloadCollection(collection.id)}
+                  className="btn btn-full"
+                  style={{
+                    marginTop: 10,
+                    background: 'rgba(239,68,68,0.1)',
+                    color: '#000000',
+                    border: '1px solid rgba(239,68,68,0.3)'
+                  }}
+                >
+                  ⬇️ Download Collection
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* ── RUNS TAB ── */}
         {activeTab === 'runs' && (
-          <div className="empty-state">
-            <div className="empty-state-icon">🏃</div>
-            <h3>Test Runs</h3>
-            <p>Coming soon</p>
+          <div>
+            {runMsg && (
+              <div className={`status-msg ${runMsg.type}`} style={{ marginBottom: 16 }}>
+                {runMsg.text}
+              </div>
+            )}
+
+            {/* Run Button */}
+            <div style={{ marginBottom: 20 }}>
+              <button
+                onClick={handleRunCollection}
+                className="btn btn-primary"
+                disabled={running || !collection}
+                title={!collection ? 'Generate a Postman collection first' : ''}
+              >
+                {running ? <><span className="spinner" /> Running...</> : '▶️ Run Collection'}
+              </button>
+              {!collection && (
+                <span style={{ fontSize: '0.82em', color: 'var(--text-secondary)', marginLeft: 10 }}>
+                  Generate a collection in the Postman tab first
+                </span>
+              )}
+            </div>
+
+            {/* Runs List */}
+            {runsLoading ? (
+              <div className="spinner-container">
+                <span className="spinner spinner-lg" />
+                <span>Loading runs...</span>
+              </div>
+            ) : runs.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">🏃</div>
+                <h3>No runs yet</h3>
+                <p>Click Run Collection to start your first test run</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {runs.map(run => (
+                  <div key={run.id} className="card" style={{ padding: 16 }}>
+
+                    {/* Run Header Row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+
+                      {/* Status Icon */}
+                      <span style={{ fontSize: '1.2em' }}>
+                        {run.status === 'passed' && '✅'}
+                        {run.status === 'failed' && '❌'}
+                        {run.status === 'running' && '⏳'}
+                        {run.status === 'error' && '🔴'}
+                        {run.status === 'timeout' && '⏱️'}
+                        {run.status === 'pending' && '⚪'}
+                      </span>
+
+                      {/* Run Info */}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.9em', color: 'var(--text-primary)' }}>
+                          Run #{run.id}
+                        </div>
+                        <div style={{ fontSize: '0.78em', color: 'var(--text-secondary)' }}>
+                          {new Date(run.run_at).toLocaleString()}
+                          {run.duration_ms ? ` · ${(run.duration_ms / 1000).toFixed(1)}s` : ''}
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      {run.total_tests !== null && (
+                        <div style={{ display: 'flex', gap: 12, fontSize: '0.82em', alignItems: 'center' }}>
+                          <span style={{ color: '#10b981', fontWeight: 600 }}>
+                            ✅ {run.passed}
+                          </span>
+                          <span style={{ color: '#ef4444', fontWeight: 600 }}>
+                            ❌ {run.failed}
+                          </span>
+                          <span style={{ color: 'var(--text-secondary)' }}>
+                            / {run.total_tests}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Report button */}
+                      {run.has_report && (
+                        <button
+                          onClick={() => handleViewReport(run.id)}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          📄 Report
+                        </button>
+                      )}
+
+                      {/* Failures toggle button */}
+                      {run.failed > 0 && (
+                        <button
+                          onClick={() => handleToggleRunDetails(run.id)}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          {expandedRunId === run.id ? '▲' : '▼'} Failures
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Expandable Failures Section */}
+                    {expandedRunId === run.id && runFailures[run.id] && (
+                      <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                        {runFailures[run.id].map((f: any, i: number) => {
+                          const matchingTestCase = testCases.find(tc => tc.test_case.includes(f.testName));
+                          const existingDefect = matchingTestCase
+                            ? defects.find(d => d.test_case_id === matchingTestCase.id)
+                            : null;
+                          console.log('Failure:', f.testName, 'MatchedTC:', matchingTestCase?.id, 'ExistingDefect:', existingDefect);
+                          return (
+                            <div key={i} style={{
+                              background: 'rgba(239,68,68,0.05)',
+                              border: '1px solid rgba(239,68,68,0.15)',
+                              borderRadius: 8,
+                              padding: '10px 14px',
+                              marginBottom: 8,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10
+                            }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600, fontSize: '0.85em', color: 'var(--text-primary)' }}>
+                                  {f.testName}
+                                </div>
+                                <div style={{ fontSize: '0.78em', color: '#ef4444', marginTop: 2 }}>
+                                  {f.message}
+                                </div>
+                              </div>
+                              {existingDefect ? (
+                                <span style={{
+                                  fontSize: '0.75em',
+                                  padding: '4px 10px',
+                                  borderRadius: 12,
+                                  background: 'rgba(99,102,241,0.1)',
+                                  color: '#6366f1',
+                                  fontWeight: 500,
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  🔗 {existingDefect.defect_jira_key}
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleCreateDefect(run.id, f)}
+                                  className="btn btn-danger btn-sm"
+                                >
+                                  🐛 Create Defect
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {/* ── DEFECTS TAB ── */}
         {activeTab === 'defects' && (
-          <div className="empty-state">
-            <div className="empty-state-icon">🐛</div>
-            <h3>Defects</h3>
-            <p>Coming soon</p>
+          <div>
+            {defectsLoading ? (
+              <div className="spinner-container">
+                <span className="spinner spinner-lg" />
+                <span>Loading defects...</span>
+              </div>
+            ) : defects.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">🐛</div>
+                <h3>No defects yet</h3>
+                <p>Defects are automatically created for failed test runs</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {defects.map(defect => (
+                  <div key={defect.id} className="card" style={{ padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <span style={{ fontSize: '1.1em' }}>🐛</span>
+                      {defect.defect_jira_key ? (
+                        <span style={{
+                          fontSize: '0.75em',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          background: 'rgba(99,102,241,0.1)',
+                          color: '#6366f1',
+                          fontWeight: 500
+                        }}>
+                          🔗 {defect.defect_jira_key}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.75em', color: 'var(--text-secondary)' }}>
+                          Not pushed to Jira
+                        </span>
+                      )}
+                      <span style={{ fontSize: '0.75em', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                        {new Date(defect.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <div style={{ fontWeight: 600, fontSize: '0.9em', color: 'var(--text-primary)', marginBottom: 8 }}>
+                      {defect.summary}
+                    </div>
+
+                    <div className="grid-2">
+                      <div style={{ background: 'var(--bg-primary)', borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ fontSize: '0.72em', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                          EXPECTED
+                        </div>
+                        <div style={{ fontSize: '0.82em', color: 'var(--text-primary)' }}>
+                          {defect.expected}
+                        </div>
+                      </div>
+                      <div style={{ background: 'var(--bg-primary)', borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ fontSize: '0.72em', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                          ACTUAL
+                        </div>
+                        <div style={{ fontSize: '0.82em', color: 'var(--text-primary)' }}>
+                          {defect.actual}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
       </div>
 
-      <footer className="app-footer">© TestSage Platform</footer>
+      <footer className="app-footer">© TestAutoGen Platform</footer>
 
       {/* Regenerate Modal */}
       {regenModal && (
@@ -742,6 +1758,33 @@ const TicketDetail: React.FC = () => {
                 className="btn btn-danger"
               >
                 Delete & Regenerate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Show warning messsage */}
+
+      {showRegenerateWarning && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-title">⚠️ Regenerate Collection?</div>
+            <p style={{ fontSize: '0.9em', color: 'var(--text-secondary)', marginBottom: 8 }}>
+              A Postman collection already exists for <strong>{ticketKey}</strong>.
+            </p>
+            <p style={{ fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+              Regenerating will replace the existing collection and <strong>consume additional AI tokens</strong>.
+            </p>
+            <div className="modal-actions">
+              <button onClick={() => setShowRegenerateWarning(false)} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowRegenerateWarning(false); handleGenerateCollection(); }}
+                className="btn btn-danger"
+              >
+                Regenerate
               </button>
             </div>
           </div>

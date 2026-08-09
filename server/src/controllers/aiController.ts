@@ -3,6 +3,7 @@ import pool from '../config/db';
 import { fetchJiraTicket } from '../services/jiraService';
 import { generateBDDTestCases } from '../services/aiService';
 import { AIRequest } from '../types';
+import { runInputGuardrails, runOutputGuardrails } from '../guardrails/pipeline';
 
 export const generateTestCases = async (req: Request, res: Response): Promise<void> => {
   const { ticketKey, provider, model, modelFamily } = req.body;
@@ -15,6 +16,24 @@ export const generateTestCases = async (req: Request, res: Response): Promise<vo
   try {
     // Fetch Jira ticket
     const ticket = await fetchJiraTicket(ticketKey);
+
+    // ── Input guardrails — check ticket content before sending to AI ──
+    const inputText = `${ticket.summary}\n${ticket.description || ''}`;
+    const inputCheck = await runInputGuardrails(inputText, {
+      userId:   req.userId,
+      action:   'generate_test_cases',
+      tool:     'ai_provider',
+      timestamp: new Date()
+    });
+
+    if (inputCheck.blocked) {
+      res.status(422).json({
+        error:  'Input blocked by guardrails',
+        reason: inputCheck.blockedBy?.reason,
+        guardrail: inputCheck.blockedBy?.guardrail
+      });
+      return;
+    }
 
     // ── Delete existing test cases first ──────────────
     await pool.query(
@@ -29,7 +48,7 @@ export const generateTestCases = async (req: Request, res: Response): Promise<vo
       await pool.query(`ALTER SEQUENCE test_cases_id_seq RESTART WITH 1`);
     }
 
-    // Generate new test cases via AI
+    // Generate new test cases via AI (using guardrail-checked input)
     const result = await generateBDDTestCases({
       ticketKey,
       summary: ticket.summary,
@@ -37,17 +56,37 @@ export const generateTestCases = async (req: Request, res: Response): Promise<vo
       provider,
       model,
       modelFamily: modelFamily || model,
-      userId: req.userId              // ← add here
+      userId: req.userId
     });
 
-    // Store new test cases in DB
+    // ── Output guardrails — check each generated test case ──
     const inserted = [];
+    let skippedCount = 0;
+
     for (const tc of result.testCases) {
+      const outputCheck = await runOutputGuardrails(tc, {
+        userId:   req.userId,
+        action:   'generate_test_cases',
+        timestamp: new Date(),
+        metadata: {
+          requirementText: inputText,
+          hasJiraTicket:   true
+        }
+      });
+
+      if (outputCheck.blocked) {
+        console.warn(
+          `Test case blocked by ${outputCheck.blockedBy?.guardrail}: ${outputCheck.blockedBy?.reason}`
+        );
+        skippedCount++;
+        continue;
+      }
+
       const row = await pool.query(
         `INSERT INTO test_cases (jira_id, user_id, test_case, status)
          VALUES ($1, $2, $3, 'draft')
          RETURNING *`,
-        [ticketKey, req.userId, tc]
+        [ticketKey, req.userId, outputCheck.content]
       );
       inserted.push(row.rows[0]);
     }
@@ -68,11 +107,13 @@ export const generateTestCases = async (req: Request, res: Response): Promise<vo
     );
 
     res.status(201).json({
-      message: `Generated ${inserted.length} test cases`,
+      message: skippedCount > 0
+        ? `Generated ${inserted.length} test cases (${skippedCount} skipped by guardrails)`
+        : `Generated ${inserted.length} test cases`,
       count: inserted.length,
+      skipped: skippedCount,
       testCases: inserted
     });
-
   } catch (err: any) {
     console.error('Generate test cases error:', err.message);
     res.status(500).json({ error: 'Failed to generate test cases' });

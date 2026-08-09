@@ -17,6 +17,9 @@ export class FileValidator implements IInputGuardrail {
   private readonly maxSizeMB    = config.file.maxSizeMB;
   private readonly maxPages     = config.file.maxPages;
 
+  
+  
+
   // IInputGuardrail.check — accepts JSON-stringified FileValidationInput
   async check(input: string, _context?: PipelineContext): Promise<InputGuardrailResult> {
     let fileInput: FileValidationInput;

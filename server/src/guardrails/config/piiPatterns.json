@@ -13,7 +13,7 @@
     { "name": "IFSC",           "regex": "[A-Z]{4}0[A-Z0-9]{6}",                                       "mask": "[IFSC REDACTED]"       },
     { "name": "UPI",            "regex": "[a-zA-Z0-9.\\-_]{2,256}@[a-zA-Z]{2,64}",                     "mask": "[UPI REDACTED]"        },
     { "name": "SSN",            "regex": "\\b\\d{3}-\\d{2}-\\d{4}\\b",                                 "mask": "[SSN REDACTED]"        },
-    { "name": "Password",       "regex": "(?i)password\\s*[=:\\-]\\s*\\S+",                             "mask": "[PASSWORD REDACTED]"   },
-    { "name": "OTP",            "regex": "(?i)\\botp\\b\\s*[=:\\-]?\\s*\\d{4,8}",                      "mask": "[OTP REDACTED]"        }
+    { "name": "Password", "regex": "password\\s*[=:\\-]\\s*\\S+", "mask": "[PASSWORD REDACTED]" },
+    { "name": "OTP",      "regex": "\\botp\\b\\s*[=:\\-]?\\s*\\d{4,8}", "mask": "[OTP REDACTED]" }                          
   ]
 }

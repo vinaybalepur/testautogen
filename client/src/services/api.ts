@@ -1,7 +1,4 @@
 import axios from 'axios';
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
 
 
 const api = axios.create({
