@@ -17,9 +17,10 @@ export interface PipelineContext {
   userRole?:  string;
   sessionId?: string;
   requestId?: string;
-  action?:    string;       // e.g. 'generate_test_cases'
-  tool?:      string;       // tool being invoked
+  action?:    string;       
+  tool?:      string;       
   timestamp:  Date;
+  metadata?:  Record<string, any>; 
 }
 
 export interface InputGuardrailResult extends GuardrailResult {

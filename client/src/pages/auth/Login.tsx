@@ -36,7 +36,7 @@ const Login: React.FC = () => {
 
     setLoading(true);
     try {
-      const user = await login(email, password);
+      await login(email, password);
       navigate('/dashboard');
     } catch (err: any) {
       const code    = err.response?.data?.code;

@@ -12,7 +12,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql  # auto run schema on first start
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test:     ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
@@ -56,10 +56,24 @@ services:
       - jira-testgen-network
     restart: unless-stopped
 
+  # ── Frontend UI ───────────────────────────────────────
+  client:
+    build:
+      context:    ./client
+      dockerfile: Dockerfile
+    container_name: jira-testgen-client
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - jira-testgen-network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local
-  reports_data:                     
+  reports_data:
     driver: local
 
 networks:
