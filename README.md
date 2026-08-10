@@ -69,11 +69,6 @@ JIRA_EMAIL=your-email@company.com
 JIRA_API_TOKEN=your_jira_api_token
 JIRA_TEST_PROJECT_KEY=TEST
 
-# AI Providers
-GITHUB_TOKEN=your_github_oauth_token
-COPILOT_MODEL=gpt-4o
-GEMINI_API_KEY=your_gemini_key
-ANTHROPIC_API_KEY=your_anthropic_key
 
 # Newman
 NEWMAN_TIMEOUT_MS=180000
