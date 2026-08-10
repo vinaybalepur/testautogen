@@ -130,3 +130,4 @@ curl -X POST http://localhost:5000/api/auth/register \
 ```bash
 curl http://localhost:5000/health
 ```
+
