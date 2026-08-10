@@ -10,7 +10,7 @@ An AI-powered platform that generates BDD test cases from Jira requirements, cre
 Jira Ticket → AI BDD Test Cases → Review & Approve →
 Postman Collection → Run Tests → HTML Report → Jira Defects
 
-<img width="2720" height="1280" alt="testsage_pipeline_diagram" src="https://github.com/user-attachments/assets/e1b6e549-9710-4083-a385-f54f119b1bac" />
+![TestSage pipeline](./docs/images/testsage_pipeline_diagram.png)
 
 ```
 
