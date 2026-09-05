@@ -16,6 +16,7 @@ import tokenRoutes  from './routes/tokens';
 import aiConfigRoutes from './routes/aiConfig'; 
 import discoveryRoutes from './routes/discovery'; 
 import apiRegistryRoutes from './routes/apiRegistry';
+import performanceRoutes from './routes/performance';
 
 import  './config/db';
 
@@ -47,7 +48,7 @@ app.use('/api/tokens',    tokenRoutes);
 app.use('/api/ai-config', aiConfigRoutes); 
 app.use('/api/discovery', discoveryRoutes);
 app.use('/api/registry', apiRegistryRoutes); 
-
+app.use('/api/performance', performanceRoutes);
 
 
 
