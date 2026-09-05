@@ -130,8 +130,10 @@ for (const [key, guard] of Object.entries(inputGuards)) {
       return { passed: false, blocked: true, content, warnings, blockedBy: result, allResults };
     }
 
-    if (configuredAction === 'mask' && result.masked) {
-      content = result.masked;
+    if (configuredAction === 'mask') {
+      // Input guards use sanitisedInput; fall back to masked for backwards compat
+      const sanitised = result.sanitisedInput ?? (result as any).masked;
+      if (sanitised) content = sanitised;
       continue;
     }
 
