@@ -1,0 +1,107 @@
+{
+  "version": "1.0.0",
+  "enabled": true,
+
+  "rateLimit": {
+    "enabled": true,
+    "global":      { "windowMs": 60000, "maxRequests": 300 },
+    "perUser":     { "windowMs": 60000, "maxRequests": 100 },
+    "perIp":       { "windowMs": 60000, "maxRequests": 200 },
+    "aiEndpoints": { "windowMs": 60000, "maxRequests": 20 },
+    "aiPaths": ["/api/ai/", "/api/postman/generate", "/api/discovery/"]
+  },
+
+  "bruteForce": {
+    "enabled": true,
+    "maxFailedAttempts": 5,
+    "lockoutDurationMs": 900000,
+    "windowMs": 300000,
+    "protectedEndpoints": [
+      "/api/auth/login",
+      "/api/auth/register",
+      "/api/auth/refresh"
+    ]
+  },
+
+  "anomaly": {
+    "enabled": true,
+    "maxBodySizeBytes": 524288,
+    "suspiciousUserAgents": [
+      "sqlmap", "nikto", "nmap", "masscan", "burpsuite",
+      "python-requests", "go-http-client", "libwww-perl",
+      "dirbuster", "hydra", "acunetix", "appscan", "nessus",
+      "openvas", "wfuzz", "gobuster", "ffuf", "zaproxy"
+    ],
+    "suspiciousPathPatterns": [
+      "\\.env", "\\.git", "wp-admin", "phpMyAdmin",
+      "etc/passwd", "proc/self", "\\.aws/credentials",
+      "admin/config", "config\\.php", "backup\\.sql",
+      "\\.ssh", "id_rsa", "web\\.config", "\\.DS_Store",
+      "actuator", "swagger-ui", "api-docs", "graphql/voyager"
+    ],
+    "rapidRequestThresholdMs": 1000,
+    "rapidRequestCount": 15
+  },
+
+  "headers": {
+    "enabled": true,
+    "hsts": "max-age=31536000; includeSubDomains",
+    "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'",
+    "frameOptions": "DENY",
+    "noSniff": true,
+    "xssProtection": "1; mode=block",
+    "referrerPolicy": "strict-origin-when-cross-origin",
+    "permissionsPolicy": "camera=(), microphone=(), geolocation=(), payment=()"
+  },
+
+  "audit": {
+    "enabled": true,
+    "logAllRequests": true,
+    "sensitiveFields": [
+      "password", "password_hash", "token", "api_key", "apiKey",
+      "secret", "authorization", "cookie", "x-api-key",
+      "access_token", "refresh_token", "jwt", "cvv", "card_number"
+    ],
+    "skipPaths": ["/health"]
+  },
+
+  "threats": {
+    "autoBlockRepeatOffenders": true,
+    "blockAfterViolations": 10,
+    "blockDurationMs": 3600000,
+    "trackingWindowMs": 3600000
+  },
+
+  "owaspApiChecks": {
+    "bola": {
+      "enabled": true,
+      "comment": "API1 — enforce object-level ownership checks in controllers"
+    },
+    "brokenAuth": {
+      "enabled": true,
+      "comment": "API2 — enforced via authenticate middleware + brute force guard"
+    },
+    "excessiveDataExposure": {
+      "enabled": true,
+      "comment": "API3 — output PII masking via guardrails pipeline"
+    },
+    "resourceConsumption": {
+      "enabled": true,
+      "comment": "API4 — rate limiter + body size + AI endpoint limits"
+    },
+    "functionLevelAuth": {
+      "enabled": true,
+      "comment": "API5 — isAdmin middleware + role checks"
+    },
+    "ssrfProtection": {
+      "enabled": true,
+      "blockedHostPatterns": [
+        "169\\.254\\.169\\.254",
+        "metadata\\.google\\.internal",
+        "^localhost$", "^127\\.0\\.0\\.1$",
+        "^10\\.", "^172\\.(1[6-9]|2[0-9]|3[01])\\.",
+        "^192\\.168\\."
+      ]
+    }
+  }
+}
