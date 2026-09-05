@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -37,7 +37,29 @@ interface TestCase {
   updated_at: string;
 }
 
-type TabType = 'details' | 'generate' | 'testcases' | 'postman' | 'runs' | 'defects';
+interface PerformanceRun {
+  id: number;
+  threads: number;
+  ramp_up_seconds: number;
+  duration_seconds: number | null;
+  status: string;
+  total_requests: number | null;
+  success_count: number | null;
+  error_count: number | null;
+  error_rate: number | null;
+  avg_response_ms: number | null;
+  min_response_ms: number | null;
+  max_response_ms: number | null;
+  p90_response_ms: number | null;
+  p95_response_ms: number | null;
+  p99_response_ms: number | null;
+  throughput_per_sec: number | null;
+  by_label: { label: string; count: number; errors: number; avgResponseTimeMs: number }[] | null;
+  error_message: string | null;
+  run_at: string;
+}
+
+type TabType = 'details' | 'generate' | 'testcases' | 'postman' | 'runs' | 'performance' | 'defects';
 
 const TABS: { id: TabType; label: string; icon: string }[] = [
   { id: 'details', label: 'Ticket Details', icon: '📋' },
@@ -45,6 +67,7 @@ const TABS: { id: TabType; label: string; icon: string }[] = [
   { id: 'testcases', label: 'Test Cases', icon: '✅' },
   { id: 'postman', label: 'Postman', icon: '📮' },
   { id: 'runs', label: 'Runs', icon: '🏃' },
+  { id: 'performance', label: 'Performance', icon: '⚡' },
   { id: 'defects', label: 'Defects', icon: '🐛' },
 ];
 
@@ -115,6 +138,16 @@ const TicketDetail: React.FC = () => {
   const [defects, setDefects] = useState<any[]>([]);
   const [defectsLoading, setDefectsLoading] = useState(false);
 
+  // Performance tab
+  const [perfRuns, setPerfRuns] = useState<PerformanceRun[]>([]);
+  const [perfRunsLoading, setPerfRunsLoading] = useState(false);
+  const [perfThreads, setPerfThreads] = useState('');
+  const [perfRampUp, setPerfRampUp] = useState('');
+  const [perfLoops, setPerfLoops] = useState('');
+  const [perfDuration, setPerfDuration] = useState('');
+  const [perfMode, setPerfMode] = useState<'loops' | 'duration'>('duration');
+  const [perfRunning, setPerfRunning] = useState(false);
+  const [perfMsg, setPerfMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (!ticketKey) return;
@@ -147,6 +180,13 @@ const TicketDetail: React.FC = () => {
       fetchDiscovery();
     }
   }, [registryAPIs]);
+
+  useEffect(() => {
+  if (activeTab === 'performance') {
+    fetchPerfRuns();
+    fetchCollection();
+  }
+}, [activeTab]);
 
   const fetchTicket = async () => {
     setTicketLoading(true);
@@ -688,6 +728,73 @@ const TicketDetail: React.FC = () => {
     }
   };
 
+  const fetchPerfRuns = useCallback(async () => {
+    setPerfRunsLoading(true);
+    try {
+      const { data } = await api.get(`/performance/tickets/${ticketKey}/runs`);
+      setPerfRuns(data.runs || []);
+    } catch (err) {
+      console.error('Failed to fetch performance runs:', err);
+    } finally {
+      setPerfRunsLoading(false);
+    }
+  }, [ticketKey]);
+
+  const handleRunPerformanceTest = async () => {
+    if (!collection) {
+      setPerfMsg({ type: 'error', text: 'Generate a Postman collection first' });
+      return;
+    }
+    if (!perfThreads.trim() || !perfRampUp.trim()) {
+      setPerfMsg({ type: 'error', text: 'Please provide number of users and ramp-up time' });
+      return;
+    }
+    if (perfMode === 'loops' && !perfLoops.trim()) {
+      setPerfMsg({ type: 'error', text: 'Please provide number of loops, or switch to duration mode' });
+      return;
+    }
+    if (perfMode === 'duration' && !perfDuration.trim()) {
+      setPerfMsg({ type: 'error', text: 'Please provide test duration, or switch to loop mode' });
+      return;
+    }
+
+    setPerfRunning(true);
+    setPerfMsg(null);
+    try {
+      const { data } = await api.post(`/performance/run/${collection.id}`, {
+        threads: parseInt(perfThreads),
+        rampUpSeconds: parseInt(perfRampUp),
+        loops: perfMode === 'loops' ? parseInt(perfLoops) : undefined,
+        durationSeconds: perfMode === 'duration' ? parseInt(perfDuration) : undefined,
+      });
+      setPerfMsg({ type: 'success', text: '⏳ Performance test started — this may take a minute...' });
+
+      // Poll for completion
+      const interval = setInterval(async () => {
+        try {
+          const { data: statusData } = await api.get(`/performance/runs/${data.runId}`);
+          const status = statusData.run?.status;
+          if (['completed', 'failed', 'timeout'].includes(status)) {
+            clearInterval(interval);
+            setPerfRunning(false);
+            fetchPerfRuns();
+            setPerfMsg(
+              status === 'completed'
+                ? { type: 'success', text: '✅ Performance test completed!' }
+                : { type: 'error', text: `❌ Performance test ${status}: ${statusData.run.error_message || ''}` }
+            );
+          }
+        } catch {
+          clearInterval(interval);
+          setPerfRunning(false);
+        }
+      }, 4000);
+    } catch (err: unknown) {
+      setPerfRunning(false);
+      //setPerfMsg({ type: 'error', text: getErrorMessage(err, 'Failed to start performance test') });
+    }
+  };
+
   const statusColor: Record<string, string> = {
     draft: '#64748b',
     approved: '#10b981',
@@ -785,6 +892,205 @@ const TicketDetail: React.FC = () => {
       {/* Tab Content */}
       <div style={{ flex: 1, padding: '28px 24px', maxWidth: 900, margin: '0 auto', width: '100%' }}>
 
+        {/* ── PERFORMANCE TAB ── */}
+{activeTab === 'performance' && (
+  <div>
+    {perfMsg && (
+      <div className={`status-msg ${perfMsg.type}`} style={{ marginBottom: 16 }}>
+        {perfMsg.text}
+      </div>
+    )}
+
+    {/* Load Test Configuration */}
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card-header">
+        <div className="card-icon orange">⚡</div>
+        <div>
+          <div className="card-title">Load Test Configuration</div>
+          <div className="card-subtitle">Set the load parameters for this run</div>
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <div className="form-group">
+          <label className="form-label">Virtual Users *</label>
+          <input
+            type="number"
+            className="form-input"
+            placeholder="e.g. 10"
+            value={perfThreads}
+            onChange={e => setPerfThreads(e.target.value)}
+            min={1}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Ramp-up Time (seconds) *</label>
+          <input
+            type="number"
+            className="form-input"
+            placeholder="e.g. 10"
+            value={perfRampUp}
+            onChange={e => setPerfRampUp(e.target.value)}
+            min={1}
+          />
+        </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">Run Mode</label>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => setPerfMode('duration')}
+            className={`btn ${perfMode === 'duration' ? 'btn-primary' : 'btn-secondary'}`}
+          >
+            ⏱️ Fixed Duration
+          </button>
+          <button
+            onClick={() => setPerfMode('loops')}
+            className={`btn ${perfMode === 'loops' ? 'btn-primary' : 'btn-secondary'}`}
+          >
+            🔁 Fixed Loop Count
+          </button>
+        </div>
+      </div>
+
+      {perfMode === 'duration' ? (
+        <div className="form-group">
+          <label className="form-label">Duration (seconds) *</label>
+          <input
+            type="number"
+            className="form-input"
+            placeholder="e.g. 60"
+            value={perfDuration}
+            onChange={e => setPerfDuration(e.target.value)}
+            min={1}
+          />
+        </div>
+      ) : (
+        <div className="form-group">
+          <label className="form-label">Loops per user *</label>
+          <input
+            type="number"
+            className="form-input"
+            placeholder="e.g. 5"
+            value={perfLoops}
+            onChange={e => setPerfLoops(e.target.value)}
+            min={1}
+          />
+        </div>
+      )}
+
+      <button
+        onClick={handleRunPerformanceTest}
+        className="btn btn-primary btn-full btn-lg"
+        disabled={perfRunning || !collection}
+        title={!collection ? 'Generate a Postman collection first' : ''}
+        style={{ marginTop: 8 }}
+      >
+        {perfRunning ? <><span className="spinner" /> Running...</> : '⚡ Run Performance Test'}
+      </button>
+      {!collection && (
+        <div style={{ fontSize: '0.8em', color: 'var(--text-secondary)', marginTop: 8 }}>
+          Generate a collection in the Postman tab first
+        </div>
+      )}
+    </div>
+
+    {/* Run History */}
+    {perfRunsLoading ? (
+      <div className="spinner-container">
+        <span className="spinner spinner-lg" />
+        <span>Loading performance runs...</span>
+      </div>
+    ) : perfRuns.length === 0 ? (
+      <div className="empty-state">
+        <div className="empty-state-icon">⚡</div>
+        <h3>No performance runs yet</h3>
+        <p>Configure load parameters above and run your first test</p>
+      </div>
+    ) : (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {perfRuns.map(run => (
+          <div key={run.id} className="card" style={{ padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: run.status === 'completed' ? 14 : 0 }}>
+              <span style={{ fontSize: '1.2em' }}>
+                {run.status === 'completed' && '✅'}
+                {run.status === 'running' && '⏳'}
+                {run.status === 'failed' && '❌'}
+                {run.status === 'timeout' && '⏱️'}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.9em', color: 'var(--text-primary)' }}>
+                  Run #{run.id} — {run.threads} users, {run.ramp_up_seconds}s ramp-up
+                  {run.duration_seconds ? `, ${run.duration_seconds}s duration` : ''}
+                </div>
+                <div style={{ fontSize: '0.78em', color: 'var(--text-secondary)' }}>
+                  {new Date(run.run_at).toLocaleString()}
+                </div>
+              </div>
+            </div>
+
+            {run.status === 'failed' && run.error_message && (
+              <div className="status-msg error" style={{ marginTop: 8 }}>{run.error_message}</div>
+            )}
+
+            {run.status === 'completed' && (
+              <>
+                <div className="grid-4" style={{ marginBottom: 12 }}>
+                  <div className="stat-card">
+                    <div className="stat-value" style={{ fontSize: '1.2em' }}>{run.total_requests}</div>
+                    <div className="stat-label">Total Requests</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-value" style={{ fontSize: '1.2em', color: run.error_rate && run.error_rate > 0 ? '#ef4444' : '#10b981' }}>
+                      {run.error_rate}%
+                    </div>
+                    <div className="stat-label">Error Rate</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-value" style={{ fontSize: '1.2em' }}>{run.avg_response_ms}ms</div>
+                    <div className="stat-label">Avg Response</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-value" style={{ fontSize: '1.2em' }}>{run.throughput_per_sec}/s</div>
+                    <div className="stat-label">Throughput</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 16, fontSize: '0.8em', color: 'var(--text-secondary)', marginBottom: 12 }}>
+                  <span>p90: <strong style={{ color: 'var(--text-primary)' }}>{run.p90_response_ms}ms</strong></span>
+                  <span>p95: <strong style={{ color: 'var(--text-primary)' }}>{run.p95_response_ms}ms</strong></span>
+                  <span>p99: <strong style={{ color: 'var(--text-primary)' }}>{run.p99_response_ms}ms</strong></span>
+                  <span>min/max: <strong style={{ color: 'var(--text-primary)' }}>{run.min_response_ms}/{run.max_response_ms}ms</strong></span>
+                </div>
+
+                {run.by_label && run.by_label.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {run.by_label.map((l, i) => (
+                      <div key={i} style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto auto',
+                        gap: 10,
+                        fontSize: '0.8em',
+                        padding: '6px 10px',
+                        background: 'var(--bg-primary)',
+                        borderRadius: 6
+                      }}>
+                        <span style={{ color: 'var(--text-primary)' }}>{l.label}</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{l.count} reqs{l.errors > 0 ? `, ${l.errors} errors` : ''}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{l.avgResponseTimeMs}ms avg</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
         {/* ── TICKET DETAILS TAB ── */}
         {activeTab === 'details' && (
           <div>
@@ -1814,5 +2120,6 @@ const TicketDetail: React.FC = () => {
     </div>
   );
 };
+
 
 export default TicketDetail;

@@ -1,4 +1,13 @@
 services:
+# ── JMeter Performance Runner ────────────────────────
+  jmeter-runner:
+    build:
+      context:    ./jmeter-runner
+      dockerfile: Dockerfile
+    container_name: jira-testgen-jmeter
+    networks:
+      - jira-testgen-network
+    restart: unless-stopped
 
   # ── PostgreSQL Database ──────────────────────────────
   db:
@@ -45,6 +54,7 @@ services:
       NEWMAN_TIMEOUT_MS:       ${NEWMAN_TIMEOUT_MS}
       REPORT_RETENTION_DAYS:   ${REPORT_RETENTION_DAYS}
       ENCRYPTION_KEY:          ${ENCRYPTION_KEY}
+      JMETER_RUNNER_URL:       http://jmeter-runner:4000
     ports:
       - "${PORT}:${PORT}"
     volumes:
@@ -76,6 +86,7 @@ volumes:
   reports_data:
     driver: local
 
+  
 networks:
   jira-testgen-network:
     driver: bridge

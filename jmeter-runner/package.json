@@ -1,0 +1,12 @@
+{
+  "name": "jmeter-runner",
+  "version": "1.0.0",
+  "description": "Minimal HTTP wrapper around Apache JMeter for TestSage performance testing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

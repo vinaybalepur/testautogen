@@ -208,3 +208,32 @@ CREATE INDEX IF NOT EXISTS idx_collection_discovery ON collection_discovery(tick
 ALTER TABLE collection_discovery
 ADD COLUMN IF NOT EXISTS api_ids  JSONB,
 ADD COLUMN IF NOT EXISTS base_url TEXT;
+
+CREATE TABLE IF NOT EXISTS performance_runs (
+  id                  SERIAL PRIMARY KEY,
+  collection_id       INTEGER REFERENCES postman_collections(id) ON DELETE CASCADE,
+  ticket_key          VARCHAR(50)  NOT NULL,
+  user_id             INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  threads             INTEGER NOT NULL,
+  ramp_up_seconds     INTEGER NOT NULL,
+  duration_seconds    INTEGER,
+  status              VARCHAR(20) DEFAULT 'running'
+                      CHECK (status IN ('running', 'completed', 'failed', 'timeout')),
+  total_requests      INTEGER,
+  success_count       INTEGER,
+  error_count         INTEGER,
+  error_rate          NUMERIC(5,2),
+  avg_response_ms     INTEGER,
+  min_response_ms     INTEGER,
+  max_response_ms     INTEGER,
+  p90_response_ms     INTEGER,
+  p95_response_ms     INTEGER,
+  p99_response_ms     INTEGER,
+  throughput_per_sec  NUMERIC(8,2),
+  by_label            JSONB,
+  error_message       TEXT,
+  run_at              TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_perf_runs_collection ON performance_runs(collection_id);
+CREATE INDEX IF NOT EXISTS idx_perf_runs_ticket     ON performance_runs(ticket_key);
